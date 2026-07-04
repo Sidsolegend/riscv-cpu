@@ -1,0 +1,52 @@
+// ============================================================================
+//  tangnano9k.cst  —  physical pin map for soc_tangnano9k on the Tang Nano 9K
+// ----------------------------------------------------------------------------
+//  Maps the top-level port names to balls on the Gowin GW1NR-9 (QN88 package).
+//  The clock, reset button, LEDs and on-board UART pins below are the standard
+//  Tang Nano 9K assignments used by Sipeed's own examples. The LCD pins are
+//  user GPIO on the 2x more header — any free 3.3V I/O works; verify against
+//  your board's silkscreen / schematic before wiring the panel.
+//
+//  Used by the Gowin/open (apicula) flow:  nextpnr --cst fpga/tangnano9k.cst
+// ============================================================================
+
+// ---- 27 MHz on-board oscillator --------------------------------------------
+IO_LOC  "clk" 52;
+IO_PORT "clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+// ---- reset button (active low) ---------------------------------------------
+IO_LOC  "btn_rst_n" 4;
+IO_PORT "btn_rst_n" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+// ---- UART TX -> on-board USB-serial bridge (appears as a COM port on your PC)
+IO_LOC  "uart_tx_pin" 17;
+IO_PORT "uart_tx_pin" IO_TYPE=LVCMOS33 DRIVE=8;
+
+// ---- 6 on-board LEDs (active LOW) ------------------------------------------
+IO_LOC  "led_n[0]" 10;
+IO_LOC  "led_n[1]" 11;
+IO_LOC  "led_n[2]" 13;
+IO_LOC  "led_n[3]" 14;
+IO_LOC  "led_n[4]" 15;
+IO_LOC  "led_n[5]" 16;
+IO_PORT "led_n[0]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_PORT "led_n[1]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_PORT "led_n[2]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_PORT "led_n[3]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_PORT "led_n[4]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_PORT "led_n[5]" IO_TYPE=LVCMOS33 DRIVE=8;
+
+// ---- HD44780 character LCD (4-bit) on the GPIO header -----------------------
+//  RS, E and DB7..DB4. Pick any free 3.3V header pins; these are examples.
+IO_LOC  "lcd_rs" 25;
+IO_LOC  "lcd_e"  26;
+IO_LOC  "lcd_db[0]" 27;   // DB4
+IO_LOC  "lcd_db[1]" 28;   // DB5
+IO_LOC  "lcd_db[2]" 29;   // DB6
+IO_LOC  "lcd_db[3]" 30;   // DB7
+IO_PORT "lcd_rs"    IO_TYPE=LVCMOS33 DRIVE=8;
+IO_PORT "lcd_e"     IO_TYPE=LVCMOS33 DRIVE=8;
+IO_PORT "lcd_db[0]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_PORT "lcd_db[1]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_PORT "lcd_db[2]" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_PORT "lcd_db[3]" IO_TYPE=LVCMOS33 DRIVE=8;

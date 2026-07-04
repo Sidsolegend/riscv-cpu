@@ -1,0 +1,37 @@
+// ============================================================================
+//  sum.hex  —  test program for the RV32I core
+// ----------------------------------------------------------------------------
+//  Computes sum = 1 + 2 + ... + 10  (= 55), stores it to memory, reads it back.
+//  Exercises: addi, beq, add, jal, sw, lw  (arithmetic, branch, jump, memory).
+//
+//  One 8-digit hex word per line = one 32-bit instruction, in address order.
+//  `//` comments (and blank lines) are ignored by $readmemh. The assembly on
+//  each line is what that machine-code word decodes to.
+//
+//    addr   machine     assembly                 meaning
+//  ------------------------------------------------------------------------
+//    0x00                addi x1, x0, 0           sum  = 0
+//    0x04                addi x2, x0, 1           i    = 1
+//    0x08                addi x3, x0, 11          lim  = 11
+//    0x0C                beq  x2, x3, done        if (i == 11) goto done
+//    0x10                add  x1, x1, x2          sum += i
+//    0x14                addi x2, x2, 1           i++
+//    0x18                jal  x0, loop            goto loop (back to 0x0C)
+//    0x1C   done:        sw   x1, 0(x0)           mem[0] = sum
+//    0x20                addi x5, x0, 0           x5 = 0
+//    0x24                lw   x5, 0(x0)           x5 = mem[0]   (reads back 55)
+//    0x28   halt:        jal  x0, halt            spin forever (program done)
+//
+//  Expected final state:  x1 = 55, x2 = 11, x3 = 11, x5 = 55, mem[0] = 55
+// ============================================================================
+00000093
+00100113
+00B00193
+00310863
+002080B3
+00110113
+FF5FF06F
+00102023
+00000293
+00002283
+0000006F

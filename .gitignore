@@ -1,0 +1,14 @@
+# simulation build products
+sim/*.vvp
+sim/*.vcd
+# FPGA synthesis products
+sim/*.json
+sim/*.fs
+# C-toolchain build products
+sim/*.elf
+sim/*.bin
+# python bytecode cache
+**/__pycache__/
+*.pyc
+# local editor / tool settings
+**/settings.local.json

@@ -1,0 +1,30 @@
+// ============================================================================
+//  hazards.hex  —  a program designed to STRESS the pipeline's hazard logic
+// ----------------------------------------------------------------------------
+//  Every line below deliberately depends on the instruction right before it,
+//  so a naive pipeline would read stale values and get wrong answers. If the
+//  forwarding unit and the load-use stall both work, the results are exact.
+//
+//    addr   assembly              why it's a hazard              expect
+//  ------------------------------------------------------------------------
+//    0x00   addi x1, x0, 5        (seed)                          x1 = 5
+//    0x04   addi x2, x0, 10       (seed)                          x2 = 10
+//    0x08   add  x3, x1, x2       uses x1,x2 (forward)            x3 = 15
+//    0x0C   sub  x4, x3, x1       uses x3 from PREV insn (fwd)    x4 = 10
+//    0x10   add  x5, x4, x3       uses x4 from PREV insn (fwd)    x5 = 25
+//    0x14   sw   x5, 0(x0)        store x5                        mem[0] = 25
+//    0x18   lw   x6, 0(x0)        load it back                   x6 = 25
+//    0x1C   add  x7, x6, x1       LOAD-USE: needs x6 now -> STALL x7 = 30
+//    0x20   jal  x0, halt         spin                            (done)
+//
+//  Expected: x1=5 x2=10 x3=15 x4=10 x5=25 x6=25 x7=30, mem[0]=25
+// ============================================================================
+00500093
+00A00113
+002081B3
+40118233
+003202B3
+00502023
+00002303
+001303B3
+0000006F

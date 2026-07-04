@@ -1,0 +1,41 @@
+# ============================================================================
+#  CI — build and run the whole simulation suite on every push / PR.
+# ----------------------------------------------------------------------------
+#  Installs Icarus Verilog on a clean Ubuntu runner and runs `make all`, which
+#  covers: both cores, the hazard/M-extension/mem-op suites, the Zicsr+trap
+#  test, the single-cycle-vs-pipeline equivalence check, the sequential mul/div
+#  (2000+ differential cases), the branch predictor, the RVC decompressor, and
+#  the FPGA peripherals + full SoC (CPU -> real UART, end to end).
+#
+#  A run is green only if every "RESULT: ... PASSED" line prints and nothing
+#  reports FAILED — so a red badge means a real regression, not flakiness.
+# ============================================================================
+name: ci
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Icarus Verilog + Python
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog python3
+
+      - name: Run the full suite
+        run: make all | tee run.log
+
+      - name: Fail if any test reported FAILED
+        run: |
+          if grep -Eiq "FAIL|TIMEOUT|error:" run.log; then
+            echo "::error::a test reported a failure"
+            grep -Ei "FAIL|TIMEOUT|error:" run.log || true
+            exit 1
+          fi
+          echo "All suites passed."
