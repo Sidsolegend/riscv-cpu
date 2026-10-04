@@ -19,7 +19,7 @@ Syntax (one instruction or directive per line):
     .word  v, v, ...  32-bit values in .data (labels allowed)
     .half  v, ...     16-bit values
     .byte  v, ...     8-bit values
-    .asciz "str"      NUL-terminated string (\\n \\t \\0 \\\\ \\" escapes)
+    .asciz "str"      NUL-terminated string (\\n \\r \\t \\0 \\\\ \\" escapes)
     .space n          n zero bytes
     .equ NAME, value  define a constant
     # or //           comment to end of line
@@ -158,7 +158,7 @@ def strip_comment(line):
 
 
 def unescape(s):
-    return (s.replace('\\n', '\n').replace('\\t', '\t')
+    return (s.replace('\\n', '\n').replace('\\r', '\r').replace('\\t', '\t')
              .replace('\\0', '\0').replace('\\"', '"').replace('\\\\', '\\'))
 
 
