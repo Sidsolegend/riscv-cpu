@@ -6,17 +6,31 @@
 //   - load-use       -> hazard_unit stalls the front of the pipe one cycle
 //   - control hazard -> branches resolve in EX and flush the 2 instructions
 //                        fetched behind them on the wrong path
+// With SEQ_DIV=1 there's a fourth: a divide holds EX (and everything behind
+// it) for the ~35 cycles muldiv_seq takes, sending bubbles on ahead.
+// No CSRs or traps here -- those exist only in the single-cycle core.
 `include "defines.vh"
 
 module riscv_pipeline #(
     parameter PROG = "program.hex",
-    parameter DATA = ""
+    parameter DATA = "",
+    parameter IMEM_WORDS = 256,
+    parameter DMEM_WORDS = 256,
+    parameter SEQ_DIV = 0           // same meaning as in riscv_single
 )(
     input  wire clk,
     input  wire rst,
     output wire [31:0] pc_out,
     output wire [31:0] instr_out,
-    output wire        halted
+    output wire        halted,
+    // same SoC-facing ports as riscv_single
+    output wire        io_uart_we,
+    output wire        io_lcd_we,
+    output wire [7:0]  io_wbyte,
+    input  wire        ld_imem_we,
+    input  wire        ld_dmem_we,
+    input  wire [31:0] ld_addr,
+    input  wire [31:0] ld_data
 );
     localparam [31:0] NOP = 32'h00000013;   // addi x0, x0, 0
 
@@ -29,17 +43,20 @@ module riscv_pipeline #(
     wire [31:0] wb_data;
     wire        memwb_reg_write;
     wire [4:0]  memwb_rd;
+    wire        md_stall;
 
     // ---- IF ----
     reg  [31:0] pc;
     wire [31:0] pc_plus4 = pc + 32'd4;
     wire [31:0] instr_if;
 
-    imem #(.PROG(PROG)) IMEM (.clk(clk), .addr(pc), .instr(instr_if),
-                              .we(1'b0), .waddr(32'd0), .wdata(32'd0));
+    imem #(.MEM_WORDS(IMEM_WORDS), .PROG(PROG)) IMEM (
+        .clk(clk), .addr(pc), .instr(instr_if),
+        .we(ld_imem_we), .waddr(ld_addr), .wdata(ld_data));
 
     always @(posedge clk) begin
         if (rst)              pc <= 32'd0;
+        else if (md_stall)    pc <= pc;          // divide in progress
         else if (pc_redirect) pc <= pc_target;   // taken branch/jump wins
         else if (stall)       pc <= pc;          // load-use: hold still
         else                  pc <= pc_plus4;    // normal: next instruction
@@ -54,7 +71,7 @@ module riscv_pipeline #(
             ifid_instr <= NOP;      // wrong-path instruction gets squashed
             ifid_pc    <= 32'd0;
             ifid_pc4   <= 32'd0;
-        end else if (stall) begin
+        end else if (stall || md_stall) begin
             ifid_instr <= ifid_instr;   // hold in place, re-decode next cycle
             ifid_pc    <= ifid_pc;
             ifid_pc4   <= ifid_pc4;
@@ -109,7 +126,9 @@ module riscv_pipeline #(
     reg [4:0]  idex_rs1, idex_rs2, idex_rd;
 
     always @(posedge clk) begin
-        if (rst || ctrl_kill) begin
+        if (md_stall && !rst) begin
+            // the divide stays in EX; every idex_* register keeps its value
+        end else if (rst || ctrl_kill) begin
             idex_reg_write <= 1'b0; idex_alu_src_a <= 1'b0; idex_alu_src_b <= 1'b0;
             idex_mem_read  <= 1'b0; idex_mem_write <= 1'b0; idex_branch    <= 1'b0;
             idex_jump      <= 1'b0; idex_jalr      <= 1'b0; idex_result_src<= 2'b0;
@@ -155,10 +174,32 @@ module riscv_pipeline #(
     wire [31:0] alu_a = idex_alu_src_a ? idex_pc  : fwd_a;   // AUIPC uses PC
     wire [31:0] alu_b = idex_alu_src_b ? idex_imm : fwd_b;
 
-    wire [31:0] ex_alu_result;
+    wire [31:0] ex_alu_result_raw, ex_alu_result;
     wire        ex_alu_zero;
-    alu ALU (.a(alu_a), .b(alu_b), .alu_op(idex_alu_op),
-             .result(ex_alu_result), .zero(ex_alu_zero));
+    alu #(.HAS_DIV(!SEQ_DIV)) ALU (.a(alu_a), .b(alu_b), .alu_op(idex_alu_op),
+             .result(ex_alu_result_raw), .zero(ex_alu_zero));
+
+    // Sequential divide: the operands are the forwarded values on the first
+    // cycle in EX, and muldiv_seq latches them at start, so it doesn't matter
+    // that the instructions ahead drain out of the pipe while it runs.
+    wire        md_busy, md_done, md_is_div;
+    wire [31:0] md_result;
+    generate if (SEQ_DIV) begin : g_seq_div
+        assign md_is_div = (idex_alu_op >= `ALU_DIV) && (idex_alu_op <= `ALU_REMU);
+        muldiv_seq MD (
+            .clk(clk), .rst(rst),
+            .start(md_is_div & ~md_busy & ~md_done), .op(idex_funct3),
+            .a(fwd_a), .b(fwd_b),
+            .result(md_result), .done(md_done), .busy(md_busy)
+        );
+    end else begin : g_no_div
+        assign md_is_div = 1'b0;
+        assign md_busy   = 1'b0;
+        assign md_done   = 1'b0;
+        assign md_result = 32'd0;
+    end endgenerate
+    assign md_stall      = md_is_div & ~md_done;
+    assign ex_alu_result = md_is_div ? md_result : ex_alu_result_raw;
 
     // branch decision uses the forwarded values, not the raw idex_rs*_data
     wire signed [31:0] fa_s = fwd_a;
@@ -190,7 +231,8 @@ module riscv_pipeline #(
     reg [2:0]   exmem_funct3;
     reg [31:0]  exmem_store_data, exmem_pc4;
     always @(posedge clk) begin
-        if (rst) begin
+        if (rst || md_stall) begin
+            // a bubble goes on ahead while a divide holds EX
             exmem_reg_write <= 1'b0; exmem_mem_read <= 1'b0; exmem_mem_write <= 1'b0;
             exmem_result_src <= 2'b0; exmem_alu_result <= 32'd0; exmem_funct3 <= 3'b0;
             exmem_store_data <= 32'd0; exmem_pc4 <= 32'd0; exmem_rd <= 5'd0;
@@ -209,11 +251,13 @@ module riscv_pipeline #(
 
     // ---- MEM ----
     wire [31:0] mem_rdata;
-    dmem #(.DATA(DATA)) DMEM (
-        .clk(clk), .rst(rst), .we(exmem_mem_write),
-        .funct3(exmem_funct3),
-        .addr(exmem_alu_result), .wdata(exmem_store_data), .rdata(mem_rdata),
-        .halted(halted)
+    dmem #(.MEM_WORDS(DMEM_WORDS), .DATA(DATA)) DMEM (
+        .clk(clk), .rst(rst), .we(exmem_mem_write | ld_dmem_we),
+        .funct3(ld_dmem_we ? 3'b010 : exmem_funct3),
+        .addr(ld_dmem_we ? ld_addr : exmem_alu_result),
+        .wdata(ld_dmem_we ? ld_data : exmem_store_data), .rdata(mem_rdata),
+        .halted(halted),
+        .io_uart_we(io_uart_we), .io_lcd_we(io_lcd_we), .io_wbyte(io_wbyte)
     );
 
     reg [1:0]  memwb_result_src;

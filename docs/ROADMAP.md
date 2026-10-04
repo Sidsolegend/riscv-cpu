@@ -47,7 +47,9 @@ remaining work is wiring it into a core's datapath (the interesting part).
   ISA conformance.
 - **Formal verification** — `riscv-formal` (SymbiYosys) to prove properties like
   "every instruction retires per spec," beyond test coverage.
-- **Bring the pipeline up to feature parity** — port the CSR/trap support from
+- **Bring the pipeline up to feature parity** — it now runs on the board
+  (21 MHz, with the stalling divider and the loader), but still has no
+  CSRs. Port the CSR/trap support from
   the single-cycle core into the 5-stage pipeline (traps in a pipeline need
   precise-exception handling: flush younger instructions, take the trap on the
   oldest — a good exercise).

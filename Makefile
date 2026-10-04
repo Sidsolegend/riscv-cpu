@@ -24,7 +24,7 @@ SC_SRC   = $(LEAF) single_cycle/regfile.v single_cycle/csr.v common/muldiv_seq.v
 
 # The pipeline uses the negedge-write register file + hazard/forwarding units.
 PIPE_SRC = $(LEAF) pipelined/regfile_pipe.v pipelined/forwarding_unit.v \
-           pipelined/hazard_unit.v pipelined/riscv_pipeline.v
+           pipelined/hazard_unit.v common/muldiv_seq.v pipelined/riscv_pipeline.v
 
 .PHONY: all single pipeline hazard watch clean waves-pipeline waves-single \
         asm mext memops hello hello-pipe fib fib-pipe apps traps \
@@ -69,6 +69,14 @@ seqdiv: asm | sim
 	$(IVERILOG) $(IVFLAGS) -DSEQ_DIV_VAL=1 -DPROG_HEX='"programs/mext_test.hex"' \
 	    -DDATA_HEX='""' -o sim/diff_seqdiv.vvp $(SC_SRC) $(PIPE_ONLY) tests/tb_diff.v
 	$(VVP) sim/diff_seqdiv.vvp
+	$(IVERILOG) $(IVFLAGS) -DSEQ_DIV_VAL=1 -DPROG_HEX='"programs/divhaz.hex"' \
+	    -DDATA_HEX='"programs/divhaz.data.hex"' -o sim/divhaz_seqdiv.vvp $(SC_SRC) $(PIPE_ONLY) tests/tb_diff.v
+	$(VVP) sim/divhaz_seqdiv.vvp
+	$(IVERILOG) $(IVFLAGS) -DUSE_PIPE -DSEQ_DIV_VAL=1 -o sim/mext_pipe_seqdiv.vvp $(PIPE_SRC) tests/tb_mext.v
+	$(VVP) sim/mext_pipe_seqdiv.vvp
+	$(IVERILOG) $(IVFLAGS) -DUSE_PIPE -DSEQ_DIV_VAL=1 -DPROG_HEX='"programs/fib.hex"' \
+	    -DDATA_HEX='"programs/fib.data.hex"' -o sim/fib_pipe_seqdiv.vvp $(PIPE_SRC) tests/tb_run.v
+	$(VVP) sim/fib_pipe_seqdiv.vvp
 
 bpred: | sim
 	$(IVERILOG) $(IVFLAGS) -o sim/bpred.vvp common/branch_predictor.v tests/tb_bpred.v
@@ -105,14 +113,17 @@ fifo: | sim
 # is played by a uart_tx in the testbench).
 loader: asm | sim
 	$(IVERILOG) $(IVFLAGS) -o sim/loader.vvp $(FPGA_RTL) \
-	    fpga/soc_tangnano9k.v $(SC_SRC) tests/tb_loader.v
+	    fpga/soc_tangnano9k.v $(SC_SRC) $(PIPE_ONLY) tests/tb_loader.v
 	$(VVP) sim/loader.vvp
+	$(IVERILOG) $(IVFLAGS) -DPIPELINE=1 -o sim/loader_pipe.vvp $(FPGA_RTL) \
+	    fpga/soc_tangnano9k.v $(SC_SRC) $(PIPE_ONLY) tests/tb_loader.v
+	$(VVP) sim/loader_pipe.vvp
 
 # End-to-end: run hello on the CPU and decode the REAL uart_tx pin.
 # (FPGA_RTL already includes uart_rx, used here as the decoding monitor.)
 soc: asm | sim
 	$(IVERILOG) $(IVFLAGS) -o sim/soc.vvp $(FPGA_RTL) \
-	    fpga/soc_tangnano9k.v $(SC_SRC) tests/tb_soc.v
+	    fpga/soc_tangnano9k.v $(SC_SRC) $(PIPE_ONLY) tests/tb_soc.v
 	$(VVP) sim/soc.vvp
 
 # ---- FPGA synthesis flow (Yosys + nextpnr-apicula for the Tang Nano 9K) ------
@@ -122,21 +133,26 @@ soc: asm | sim
 #  (no synthesis tools needed) to catch wiring errors early.
 # which programs/*.s gets baked into the bitstream:  make synth PROGRAM=fib
 PROGRAM ?= hello
+# which core, and its clock (126 MHz / CPU_DIV):  make synth PIPELINE=1 CPU_DIV=6
+PIPELINE ?= 0
+CPU_DIV  ?= 10
+CPU_MHZ   = $(shell echo "scale=2; 126 / $(CPU_DIV)" | bc)
 GW_DEVICE = GW1NR-LV9QN88PC6/I5
 GW_FAMILY = GW1N-9C
 
 fpga-lint: asm
 	$(IVERILOG) $(IVFLAGS) -o sim/soc_lint.vvp $(FPGA_RTL) \
-	    fpga/soc_tangnano9k.v $(SC_SRC)
+	    fpga/soc_tangnano9k.v $(SC_SRC) $(PIPE_ONLY)
 	@echo "FPGA SoC elaborates cleanly."
 
 synth: asm
-	yosys -p "read_verilog -defer -I single_cycle $(FPGA_RTL) fpga/soc_tangnano9k.v $(SC_SRC); \
-	          chparam -set PROG \"programs/$(PROGRAM).hex\" -set DATA \"programs/$(PROGRAM).data.hex\" soc_tangnano9k; \
+	yosys -p "read_verilog -defer -I single_cycle $(FPGA_RTL) fpga/soc_tangnano9k.v $(SC_SRC) $(PIPE_ONLY); \
+	          chparam -set PROG \"programs/$(PROGRAM).hex\" -set DATA \"programs/$(PROGRAM).data.hex\" \
+	                  -set PIPELINE $(PIPELINE) -set CPU_DIV $(CPU_DIV) soc_tangnano9k; \
 	          synth_gowin -top soc_tangnano9k; \
 	          bufnorm -conn; opt_clean -purge; write_json sim/soc.json"
 	nextpnr-himbaechel --json sim/soc.json --write sim/soc_pnr.json \
-	    --device $(GW_DEVICE) --vopt family=$(GW_FAMILY) --vopt cst=fpga/tangnano9k.cst --freq 12.6
+	    --device $(GW_DEVICE) --vopt family=$(GW_FAMILY) --vopt cst=fpga/tangnano9k.cst --freq $(CPU_MHZ)
 	gowin_pack -d $(GW_FAMILY) -o sim/soc.fs sim/soc_pnr.json
 	@echo "Bitstream: sim/soc.fs  (flash with: make prog)"
 

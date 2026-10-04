@@ -27,8 +27,8 @@ module tb_diff;
     riscv_single #(.PROG(`PROG_HEX), .DATA(`DATA_HEX), .SEQ_DIV(`SEQ_DIV_VAL)) SC (
         .clk(clk), .rst(rst), .pc_out(pc_a), .instr_out(ins_a), .halted(halt_a), .ld_imem_we(1'b0), .ld_dmem_we(1'b0), .ld_addr(32'd0), .ld_data(32'd0));
 
-    riscv_pipeline #(.PROG(`PROG_HEX), .DATA(`DATA_HEX)) PIPE (
-        .clk(clk), .rst(rst), .pc_out(pc_b), .instr_out(ins_b), .halted(halt_b));
+    riscv_pipeline #(.PROG(`PROG_HEX), .DATA(`DATA_HEX), .SEQ_DIV(`SEQ_DIV_VAL)) PIPE (
+        .clk(clk), .rst(rst), .pc_out(pc_b), .instr_out(ins_b), .halted(halt_b), .ld_imem_we(1'b0), .ld_dmem_we(1'b0), .ld_addr(32'd0), .ld_data(32'd0));
 
     always #5 clk = ~clk;
 

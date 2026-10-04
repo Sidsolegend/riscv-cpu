@@ -144,7 +144,14 @@ make load PROGRAM=fib          # or: python3 tools/load.py programs/fib.s
 ```
 
 `tools/load.py` assembles the program, sends it, and prints the board's
-reply and then the program's output for a few seconds. The loader holds the
+reply and then the program's output for a few seconds. The board replies
+with a tagged line, `[load K]` (running), `[load E]` (bad checksum or too
+big) or `[load T]` (sender went quiet), and `load.py` looks for that tag
+rather than trusting the first byte: the serial line glitches whenever the
+FPGA is reprogrammed, and the old program may still be printing. The loader
+flushes the old program's queued output when a packet starts and only lets
+the new program run once the whole tag is queued, so its output always
+comes after the tag. The loader holds the
 CPU in reset while it writes the program into instruction and data memory,
 zeroes whatever is left of both, checks a checksum, and then lets the CPU
 run from address 0 (with the HDMI screen cleared). Programs must fit in 128
@@ -156,6 +163,39 @@ made its zero-fill take longer than one byte's arrival time.
 
 Unplugging the board brings back whatever program the bitstream was built
 with.
+
+## The 5-stage pipeline on the board
+
+`make synth PIPELINE=1` builds the SoC around the pipelined core instead.
+It runs the same programs except anything using CSRs or traps (the pipeline
+has none, so `traps.s` won't work), with divides stalling EX while the
+bit-serial divider runs. `make seqdiv` checks that on the M-extension test,
+`fib`, and `programs/divhaz.s` (divides in every awkward hazard position),
+and `make loader` runs the whole loader test on the pipelined SoC too.
+
+Measured on the real chip, each speed checked with `fib` and with
+`programs/clock.s` hunting primes, every reported count compared against a
+sieve (`CPU_DIV` sets the CPU clock to 126 MHz / `CPU_DIV`):
+
+| Core | Clock | Result on the chip |
+|---|---|---|
+| single-cycle | 12.6 MHz (`CPU_DIV=10`, default) | correct |
+| single-cycle | 27 MHz (crystal) | wrong: a loaded byte came back with one bit flipped |
+| pipeline | 12.6 MHz | correct; `fib` takes 581 cycles vs 459, same as simulation |
+| pipeline | 21 MHz (`CPU_DIV=6`) | correct: 90 s of prime hunting, all 91 readings right |
+| pipeline | 31.5 MHz (`CPU_DIV=4`) | wrong: `fib` still passed, but ~9% too many primes counted, and red lines appeared on the TV |
+
+So the pipeline really is faster: 21 MHz against the single-cycle core's
+12.6, despite needing more cycles for the same program. The CPU_DIV choices
+jump straight from 21 to 31.5 MHz, so the true limit is somewhere in
+between and 21 MHz has an unknown margin; the default build stays on the
+single-cycle core at 12.6 MHz. The 31.5 MHz row is also a warning about
+testing: a short program passing says nothing about speed, and only heavy
+sustained computation caught it. nextpnr's own estimate was 42.6 MHz, for
+the same reason as in the single-cycle case (no timing for LUT-RAM reads).
+
+`programs/clock.s` hard-codes 12.6 MHz in `TICKS`; at another clock, change
+it to match or its seconds will be the wrong length.
 
 ## HDMI text terminal
 

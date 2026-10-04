@@ -1,14 +1,20 @@
 // End-to-end test of program loading on the full SoC: real UART frames into
 // uart_rx_pin (what tools/load.py sends), the replies and the program's own
 // output decoded from uart_tx_pin. The board boots hello, then:
-//   bad checksum            -> 'E', CPU stays stopped (no output)
-//   too-big program         -> 'E'
-//   fib                     -> 'K', then fib's output
-//   hello again             -> 'K', then hello's output (nothing left over
-//                              from fib breaks it, including the halt flag)
-//   memops_test (no .data)  -> 'K', then its register results check out
-//   sender stops mid-packet -> 'T'
+//   bad checksum            -> [load E], CPU stays stopped (no output)
+//   too-big program         -> [load E]
+//   fib                     -> [load K], then fib's output
+//   hello again             -> [load K], then hello's output (nothing left
+//                              over from fib breaks it, including the halt flag)
+//   memops_test (no .data)  -> [load K], then its register results check out
+//   loading over a program that prints nonstop: its queued output is
+//   flushed, and the reply comes before any of the new program's output
+//   sender stops mid-packet -> [load T]
 `timescale 1ns/1ps
+
+`ifndef PIPELINE
+`define PIPELINE 0
+`endif
 
 module tb_loader;
     localparam CLK_HZ = 1_000_000, BAUD = 100_000;
@@ -20,7 +26,7 @@ module tb_loader;
     wire [5:0] led_n;
 
     soc_tangnano9k #(
-        .CLK_HZ(CLK_HZ), .BAUD(BAUD),
+        .PIPELINE(`PIPELINE), .CLK_HZ(CLK_HZ), .BAUD(BAUD),
         .PROG("programs/hello.hex"), .DATA("programs/hello.data.hex")
     ) DUT (
         .clk_in(clk), .btn_rst_n(1'b1),
@@ -48,6 +54,7 @@ module tb_loader;
     always @(posedge clk) if (m_valid) begin got[n] = m_byte; n = n + 1; end
 
     integer errors = 0;
+    integer mark;
 
     task send(input [7:0] b);
         begin
@@ -92,8 +99,8 @@ module tb_loader;
     endtask
 
     // wait for `want` to show up as the next bytes received after `from`
-    task expect_text(input integer from, input [8*40-1:0] want, input integer len,
-                     input integer budget, input [8*48-1:0] label);
+    task expect_text(input integer from, input [8*48-1:0] want, input integer len,
+                     input integer budget, input [8*64-1:0] label);
         integer i, t;
         reg ok;
         begin
@@ -105,6 +112,34 @@ module tb_loader;
             if (ok) $display("  PASS  %0s", label);
             else begin
                 $display("  FAIL  %0s (got %0d bytes)", label, n - from);
+                errors = errors + 1;
+            end
+        end
+    endtask
+
+    // `want` must turn up within a few bytes of `mark`: the old program
+    // keeps printing until the loader has seen all four magic bytes (four
+    // byte-times), plus one byte can be mid-transmission at the flush. The
+    // tag and the new output being contiguous in `want` is what proves
+    // nothing old comes after the tag.
+    task expect_tag_then(input [8*48-1:0] want, input integer len,
+                         input integer budget, input [8*64-1:0] label);
+        integer i, j, t, at;
+        reg ok;
+        begin
+            at = -1; t = 0;
+            while (at < 0 && t < budget) begin
+                @(posedge clk); t = t + 1;
+                for (j = mark; j + len <= n && at < 0; j = j + 1) begin
+                    ok = 1;
+                    for (i = 0; i < len && ok; i = i + 1)
+                        if (got[j + i] !== want[8*(len-1-i) +: 8]) ok = 0;
+                    if (ok) at = j;
+                end
+            end
+            if (at >= 0 && at - mark <= 6) $display("  PASS  %0s", label);
+            else begin
+                $display("  FAIL  %0s (tag at +%0d, %0d bytes)", label, at - mark, n - mark);
                 errors = errors + 1;
             end
         end
@@ -123,49 +158,61 @@ module tb_loader;
         end
     endtask
 
-    integer mark;
     initial begin
         repeat (4) @(posedge clk); mon_rst = 0;
-        $display("---- UART program loader ----");
+        $display("---- UART program loader (%0s core) ----", `PIPELINE ? "pipeline" : "single-cycle");
 
         expect_text(0, "HELLO FROM MY RISC-V CPU!", 25, 200000, "boots the built-in program");
         repeat (5000) @(posedge clk);
 
         load_hex("programs/fib.hex", "programs/fib.data.hex");
         mark = n; send_packet(nt, nd, 1);
-        expect_text(mark, "E", 1, 20000, "bad checksum is refused with 'E'");
+        expect_text(mark, "[load E]\n", 9, 20000, "bad checksum is refused with [load E]");
         expect_silence(50000, "and the CPU stays stopped");
 
         mark = n; send("R"); send("V"); send("L"); send("D");
         send(8'd200); send(8'd0); send(8'd0); send(8'd0);     // 200 > 128 words
-        expect_text(mark, "E", 1, 20000, "too-big program is refused with 'E'");
+        expect_text(mark, "[load E]\n", 9, 20000, "too-big program is refused with [load E]");
 
         mark = n; send_packet(nt, nd, 0);
-        expect_text(mark, "Kfib(15) = 610", 14, 400000, "fib loads, replies 'K', and runs");
+        expect_text(mark, "[load K]\nfib(15) = 610", 22, 400000, "fib loads, replies [load K], and runs");
 
         repeat (20000) @(posedge clk);
         load_hex("programs/hello.hex", "programs/hello.data.hex");
         mark = n; send_packet(nt, nd, 0);
-        expect_text(mark, "KHELLO FROM MY RISC-V CPU!", 26, 400000, "a second program loads over the first");
+        expect_text(mark, "[load K]\nHELLO FROM MY RISC-V CPU!", 34, 400000, "a second program loads over the first");
 
         // a program with no data section (n_data = 0); it prints nothing,
         // so check the registers it leaves behind instead
         repeat (20000) @(posedge clk);
         load_hex("programs/memops_test.hex", "");
         mark = n; send_packet(nt, 0, 0);
-        expect_text(mark, "K", 1, 400000, "program with no data section loads");
+        expect_text(mark, "[load K]\n", 9, 400000, "program with no data section loads");
         repeat (5000) @(posedge clk);
-        if (DUT.CPU.halted && DUT.CPU.RF.regs[18] === 32'h8091A2B3 && DUT.CPU.RF.regs[23] === 32'hBEEF0000)
+        if (DUT.g_core.CPU.halted && DUT.g_core.CPU.RF.regs[18] === 32'h8091A2B3 && DUT.g_core.CPU.RF.regs[23] === 32'hBEEF0000)
             $display("  PASS  and runs correctly (byte/half load-store results)");
         else begin
             $display("  FAIL  memops_test after loading: halted=%b x18=%h x23=%h",
-                     DUT.CPU.halted, DUT.CPU.RF.regs[18], DUT.CPU.RF.regs[23]);
+                     DUT.g_core.CPU.halted, DUT.g_core.CPU.RF.regs[18], DUT.g_core.CPU.RF.regs[23]);
             errors = errors + 1;
         end
 
         repeat (20000) @(posedge clk);
+        load_hex("programs/spam.hex", "programs/spam.data.hex");
+        mark = n; send_packet(nt, nd, 0);
+        expect_text(mark, "[load K]\nspam spam ", 19, 400000, "a program that prints nonstop loads");
+        repeat (30000) @(posedge clk);
+        load_hex("programs/hello.hex", "programs/hello.data.hex");
+        // the old program keeps printing while the packet goes in; count from
+        // the first byte that arrives after it starts being sent
+        @(posedge clk); mark = n + 1;
+        send_packet(nt, nd, 0);
+        expect_tag_then("[load K]\nHELLO FROM MY RISC-V CPU!", 34, 400000,
+                        "loading over it: old output flushed, reply comes first");
+
+        repeat (20000) @(posedge clk);
         mark = n; send("R"); send("V"); send("L"); send("D"); send(8'd5);
-        expect_text(mark, "T", 1, CLK_HZ, "sender going quiet mid-packet times out with 'T'");
+        expect_text(mark, "[load T]\n", 9, CLK_HZ, "sender going quiet mid-packet times out with [load T]");
 
         if (errors == 0) $display("RESULT: ALL LOADER TESTS PASSED");
         else             $display("RESULT: %0d LOADER TEST(S) FAILED", errors);

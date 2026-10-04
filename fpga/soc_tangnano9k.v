@@ -6,7 +6,11 @@
 `include "defines.vh"
 
 module soc_tangnano9k #(
-    parameter CLK_HZ = 12_600_000,   // CPU/system clock (from the PLL on the board)
+    // 0 = single-cycle core (with CSRs/traps), 1 = 5-stage pipeline (no CSRs)
+    parameter PIPELINE = 0,
+    // CPU clock = 126 MHz / CPU_DIV (even, 2..128); 10 -> 12.6 MHz
+    parameter CPU_DIV = 10,
+    parameter CLK_HZ = 126_000_000 / CPU_DIV,   // simulation sets this directly
     parameter BAUD   = 115200,
     parameter PROG   = "programs/hello.hex",
     parameter DATA   = "programs/hello.data.hex",
@@ -29,7 +33,7 @@ module soc_tangnano9k #(
     // Clocks, all from one PLL:
     //   126 MHz  = 27 * 14 / 3      HDMI serializers (10 bits per pixel, DDR)
     //   25.2 MHz = 126 / 5          pixel clock for 640x480 @ 60
-    //   12.6 MHz = 126 / 10         CPU and everything else
+    //   126 / CPU_DIV               CPU and everything else (12.6 MHz at /10)
     // The CPU can't run at the crystal's 27 MHz: its worst path is a load
     // (instruction ROM -> regfile -> address add -> data LUT-RAM read ->
     // register write), which is too slow on the real chip -- loaded bytes
@@ -40,7 +44,7 @@ module soc_tangnano9k #(
 `ifdef SYNTHESIS
     rPLL #(
         .FCLKIN("27"), .IDIV_SEL(2), .FBDIV_SEL(13), .ODIV_SEL(4),
-        .DYN_SDIV_SEL(10), .CLKOUTD_SRC("CLKOUT"),
+        .DYN_SDIV_SEL(CPU_DIV), .CLKOUTD_SRC("CLKOUT"),
         .DEVICE("GW1N-9C")
     ) PLL (
         .CLKIN(clk_in), .CLKOUT(clk_ser), .CLKOUTD(clk), .LOCK(pll_lock),
@@ -71,13 +75,14 @@ module soc_tangnano9k #(
     uart_rx #(.CLK_HZ(CLK_HZ), .BAUD(BAUD)) URX (
         .clk(clk), .rst(rst), .rx(uart_rx_pin), .data(rx_byte), .valid(rx_valid));
 
-    wire        ld_hold, ld_imem_we, ld_dmem_we, ld_ack_we;
+    wire        ld_hold, ld_imem_we, ld_dmem_we, ld_ack_we, ld_flush;
     wire [31:0] ld_addr, ld_data;
     wire [7:0]  ld_ack_byte;
     uart_loader #(.CLK_HZ(CLK_HZ), .IMEM_WORDS(IMEM_WORDS), .DMEM_WORDS(DMEM_WORDS)) LOADER (
         .clk(clk), .rst(rst), .rx_valid(rx_valid), .rx_data(rx_byte),
         .hold(ld_hold), .imem_we(ld_imem_we), .dmem_we(ld_dmem_we),
-        .addr(ld_addr), .wdata(ld_data), .ack_we(ld_ack_we), .ack_byte(ld_ack_byte));
+        .addr(ld_addr), .wdata(ld_data), .ack_we(ld_ack_we), .ack_byte(ld_ack_byte),
+        .flush(ld_flush));
 
     wire cpu_rst = rst | ld_hold;
 
@@ -87,13 +92,23 @@ module soc_tangnano9k #(
     wire [7:0]  io_wbyte;
 
     // divides run in the bit-serial unit instead of the ALU (see riscv_single)
-    riscv_single #(.PROG(PROG), .DATA(DATA),
-                   .IMEM_WORDS(IMEM_WORDS), .DMEM_WORDS(DMEM_WORDS), .SEQ_DIV(1)) CPU (
-        .clk(clk), .rst(cpu_rst),
-        .pc_out(pc), .instr_out(instr), .halted(halted),
-        .io_uart_we(io_uart_we), .io_lcd_we(io_lcd_we), .io_wbyte(io_wbyte),
-        .ld_imem_we(ld_imem_we), .ld_dmem_we(ld_dmem_we), .ld_addr(ld_addr), .ld_data(ld_data)
-    );
+    generate if (PIPELINE) begin : g_core
+        riscv_pipeline #(.PROG(PROG), .DATA(DATA),
+                         .IMEM_WORDS(IMEM_WORDS), .DMEM_WORDS(DMEM_WORDS), .SEQ_DIV(1)) CPU (
+            .clk(clk), .rst(cpu_rst),
+            .pc_out(pc), .instr_out(instr), .halted(halted),
+            .io_uart_we(io_uart_we), .io_lcd_we(io_lcd_we), .io_wbyte(io_wbyte),
+            .ld_imem_we(ld_imem_we), .ld_dmem_we(ld_dmem_we), .ld_addr(ld_addr), .ld_data(ld_data)
+        );
+    end else begin : g_core
+        riscv_single #(.PROG(PROG), .DATA(DATA),
+                       .IMEM_WORDS(IMEM_WORDS), .DMEM_WORDS(DMEM_WORDS), .SEQ_DIV(1)) CPU (
+            .clk(clk), .rst(cpu_rst),
+            .pc_out(pc), .instr_out(instr), .halted(halted),
+            .io_uart_we(io_uart_we), .io_lcd_we(io_lcd_we), .io_wbyte(io_wbyte),
+            .ld_imem_we(ld_imem_we), .ld_dmem_we(ld_dmem_we), .ld_addr(ld_addr), .ld_data(ld_data)
+        );
+    end endgenerate
 
     // CPU store -> FIFO -> transmitter
     wire [7:0] tx_data;
@@ -101,7 +116,7 @@ module soc_tangnano9k #(
     wire       tx_go = ~tx_busy & ~tx_empty;   // start a byte whenever one's ready
 
     fifo #(.WIDTH(8), .DEPTH(512)) UART_FIFO (
-        .clk(clk), .rst(rst),
+        .clk(clk), .rst(rst | ld_flush),
         .wr(io_uart_we | ld_ack_we), .din(ld_ack_we ? ld_ack_byte : io_wbyte),
         .rd(tx_go), .dout(tx_data), .empty(tx_empty), .full(/*unused*/)
     );

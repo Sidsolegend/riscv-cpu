@@ -127,6 +127,7 @@ instructions moving through the 5 stages, forwarding kicking in.
 | Instructions in flight | 1 | up to 5 |
 | Cycles per instruction | 1 | ~1 (plus stalls/flushes) |
 | Clock speed (real HW) | slow (one long path) | fast (short stages) |
+| Measured on the Tang Nano 9K | 12.6 MHz (fails at 27) | 21 MHz (fails at 31.5) |
 | Complexity | low | needs hazard handling |
 | Where to start reading | **here** | after the single-cycle core |
 

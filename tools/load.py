@@ -14,6 +14,7 @@ Needs pyserial (pip install pyserial).
 import argparse
 import glob
 import os
+import re
 import subprocess
 import sys
 import time
@@ -21,6 +22,9 @@ import time
 IMEM_WORDS, DMEM_WORDS = 128, 64     # must match soc_tangnano9k.v
 REPLIES = {b"K": "loaded, running", b"E": "rejected (bad checksum or too big)",
            b"T": "timed out mid-packet"}
+# the loader answers with this line; anything before it is junk from the FPGA
+# being reconfigured or the old program's last output
+TAG = re.compile(rb"\[load ([KET])\]\n")
 
 
 def read_hex(path):
@@ -78,15 +82,18 @@ def main():
         ser.write(packet)
         ser.flush()
 
-        reply, deadline = b"", time.time() + 2.0
-        while not reply and time.time() < deadline:
-            reply = ser.read(1)
-        if not reply:
+        buf, m, deadline = b"", None, time.time() + 2.0
+        while not m and time.time() < deadline:
+            buf += ser.read(256)
+            m = TAG.search(buf)
+        if not m:
             sys.exit(f"no reply from the board on {port} -- is the loader in the bitstream?")
+        reply = m.group(1)
         print(f"{os.path.basename(base)}: {len(text)} instructions, {len(data)} data words "
-              f"-> {REPLIES.get(reply, 'unexpected reply %r' % reply)}")
+              f"-> {REPLIES[reply]}")
         if reply != b"K":
             sys.exit(1)
+        sys.stdout.write(buf[m.end():].decode("ascii", "replace"))
 
         end = time.time() + args.watch
         try:
