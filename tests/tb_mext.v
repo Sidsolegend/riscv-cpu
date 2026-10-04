@@ -1,15 +1,13 @@
-// ============================================================================
-//  tb_mext.v — self-checking test for the M extension (mul/div family)
-// ----------------------------------------------------------------------------
-//  Runs programs/mext_test.hex, which leaves known answers in x5..x16 —
-//  including every division edge case the RISC-V spec defines (divide by
-//  zero, INT_MIN / -1 overflow).
-//
-//  The SAME testbench checks BOTH cores:
-//     iverilog ... tests/tb_mext.v                 -> single-cycle
-//     iverilog -DUSE_PIPE ... tests/tb_mext.v      -> 5-stage pipeline
-// ============================================================================
+// M-extension test, checks both cores with the same testbench:
+//   iverilog ... tests/tb_mext.v            -> single-cycle
+//   iverilog -DUSE_PIPE ... tests/tb_mext.v -> pipeline
+// programs/mext_test.hex leaves known answers in x18.. including the
+// division edge cases (div-by-zero, INT_MIN/-1) the RV32M spec defines.
 `timescale 1ns/1ps
+
+`ifndef SEQ_DIV_VAL
+`define SEQ_DIV_VAL 0
+`endif
 
 module tb_mext;
 
@@ -23,7 +21,7 @@ module tb_mext;
         (.clk(clk), .rst(rst), .pc_out(pc), .instr_out(instr), .halted(halted));
     localparam CORE = "pipeline";
 `else
-    riscv_single #(.PROG("programs/mext_test.hex")) dut
+    riscv_single #(.PROG("programs/mext_test.hex"), .SEQ_DIV(`SEQ_DIV_VAL)) dut
         (.clk(clk), .rst(rst), .pc_out(pc), .instr_out(instr), .halted(halted));
     localparam CORE = "single-cycle";
 `endif
@@ -51,7 +49,7 @@ module tb_mext;
         rst = 0;
 
         // run until the program halts itself (or give up)
-        for (t = 0; t < 2000 && !halted; t = t + 1) @(posedge clk);
+        for (t = 0; t < 20000 && !halted; t = t + 1) @(posedge clk);
 
         $display("");
         $display("==== M extension test (%0s core) ====", CORE);

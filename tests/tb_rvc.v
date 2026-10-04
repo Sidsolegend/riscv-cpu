@@ -1,12 +1,7 @@
-// ============================================================================
-//  tb_rvc.v  —  self-checking test for the RVC decompressor
-// ----------------------------------------------------------------------------
-//  Reads (compressed16, golden32) pairs from tests/rvc_vectors.mem and checks
-//  the decompressor turns each 16-bit instruction into exactly the 32-bit one
-//  it is defined to be equivalent to. The golden 32-bit encodings are produced
-//  independently by the project's assembler (tools/asm.py), so this is a true
-//  cross-check, not a restatement of the same logic.
-// ============================================================================
+// Reads (compressed16, golden32) pairs from tests/rvc_vectors.mem and
+// checks the decompressor's output against them. The golden encodings
+// come from the assembler (tools/asm.py) independently of the RTL, so
+// this is a real cross-check rather than the same logic checking itself.
 `timescale 1ns/1ps
 
 module tb_rvc;
@@ -35,7 +30,7 @@ module tb_rvc;
             end
         end
         if (errors == 0)
-            $display("RESULT: ALL %0d RVC TESTS PASSED  \342\234\205", N);
+            $display("RESULT: ALL %0d RVC TESTS PASSED", N);
         else
             $display("RESULT: %0d / %0d RVC TESTS FAILED", errors, N);
         $finish;

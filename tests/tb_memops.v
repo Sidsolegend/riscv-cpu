@@ -1,12 +1,7 @@
-// ============================================================================
-//  tb_memops.v — self-checking test for byte/half loads and stores
-// ----------------------------------------------------------------------------
-//  Runs programs/memops_test.hex: the program builds a word from individual
-//  bytes and reads it back at every size; this bench checks the register
-//  results AND that the bytes really landed where they should in RAM.
-//
-//  Same file tests both cores:  -DUSE_PIPE selects the pipeline.
-// ============================================================================
+// Byte/half load-store test: programs/memops_test.hex builds a word out of
+// individual byte stores and reads it back at every size; checks both the
+// register results and that the bytes actually landed correctly in RAM.
+// -DUSE_PIPE selects the pipeline instead of single-cycle.
 `timescale 1ns/1ps
 
 module tb_memops;

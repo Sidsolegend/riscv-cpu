@@ -1,10 +1,6 @@
-// ============================================================================
-//  tb_fifo.v  —  self-checking test for the byte FIFO
-// ----------------------------------------------------------------------------
-//  Fills the FIFO, checks `full` asserts at the right depth, drains it, checks
-//  ordering (first in, first out) and `empty`. Also verifies writes-while-full
-//  and reads-while-empty are ignored rather than corrupting the pointers.
-// ============================================================================
+// Fills the FIFO, checks full asserts at the right depth, drains it and
+// checks FIFO ordering + empty, and verifies a write-while-full doesn't
+// corrupt the pointers.
 `timescale 1ns/1ps
 
 module tb_fifo;
@@ -54,7 +50,7 @@ module tb_fifo;
         if (!empty) begin $display("  FAIL  not empty after draining"); errors=errors+1; end
         else $display("  PASS  FIFO order preserved and empty after drain");
 
-        if (errors == 0) $display("RESULT: ALL FIFO TESTS PASSED  \342\234\205");
+        if (errors == 0) $display("RESULT: ALL FIFO TESTS PASSED");
         else             $display("RESULT: %0d FIFO TEST(S) FAILED", errors);
         $finish;
     end

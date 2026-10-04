@@ -12,3 +12,6 @@ sim/*.bin
 *.pyc
 # local editor / tool settings
 **/settings.local.json
+
+# macOS folder metadata
+.DS_Store

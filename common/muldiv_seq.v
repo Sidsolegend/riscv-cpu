@@ -1,29 +1,15 @@
-// ============================================================================
-//  muldiv_seq.v  —  sequential (multi-cycle) multiply / divide unit
-// ----------------------------------------------------------------------------
-//  The teaching cores compute mul/div in a single combinational cycle. That's
-//  fine for a simulator, but it is NOT how real silicon behaves: a 32-bit
-//  divide is a long carry chain that no real chip can do in one fast cycle —
-//  it iterates one bit per cycle behind a stall. This unit models that.
+// Multi-cycle mul/div, one bit per cycle -- closer to what real silicon
+// does than the single-cycle ALU's combinational `*`/`/` (a 32-bit divide
+// isn't a one-fast-cycle carry chain on actual hardware). Multiply is
+// shift-and-add on a 64-bit product register; divide is restoring
+// division, shifting the dividend into a remainder one bit at a time and
+// subtracting the divisor when it fits. Both work on magnitudes and fix
+// up the sign at the end; div-by-zero and INT_MIN/-1 follow the RV32M spec.
 //
-//  It implements all eight RV32M operations with the CLASSIC bit-serial
-//  datapaths every architecture course teaches:
-//     * multiply — shift-and-add: a 64-bit product register whose low half
-//       starts as the multiplier; 32 steps of "add multiplicand if LSB, then
-//       shift right".
-//     * divide   — restoring division: shift the dividend into a remainder one
-//       bit at a time, subtract the divisor when it fits, set a quotient bit.
-//  Signed variants operate on magnitudes and fix the sign at the end; the
-//  divide edge cases (÷0 and INT_MIN/−1) follow the RISC-V spec exactly.
-//
-//  Handshake: pulse `start` with `op`/`a`/`b`; the unit raises `busy`, and
-//  `done` pulses for one cycle with `result` valid. A datapath would freeze the
-//  pipeline while `busy` is high — the whole point of the exercise.
-//
-//  It is verified in tests/tb_muldiv.v by cross-checking every result against
-//  the single-cycle ALU (the already-trusted combinational implementation)
-//  across the spec's edge cases plus a large sweep of pseudo-random inputs.
-// ============================================================================
+// Handshake: pulse `start` with op/a/b, `busy` goes high, `done` pulses
+// for one cycle when `result` is valid -- a real pipeline would stall on
+// `busy`. Cross-checked against the ALU's combinational result plus a
+// random sweep in tests/tb_muldiv.v.
 `include "defines.vh"
 
 module muldiv_seq (
@@ -57,6 +43,8 @@ module muldiv_seq (
     reg  [31:0] multiplicand;
     reg  [63:0] P;                  // multiply: product; divide: {remainder, dividend}
     reg  [31:0] divisor;
+    reg  [63:0] prod;               // scratch for FIN, blocking-assigned
+    reg  [31:0] q, r;
 
     // magnitudes of the incoming operands (combinational, sampled at start)
     wire        na = a_signed(op) & a[31];
@@ -128,12 +116,10 @@ module muldiv_seq (
                 FIN: begin
                     if (cur_op < 3'd4) begin
                         // multiply: apply sign, then pick the requested half
-                        reg [63:0] prod;
                         prod = res_neg ? (~P + 64'd1) : P;
                         result <= (cur_op==3'd0) ? prod[31:0] : prod[63:32];
                     end else begin
                         // divide: quotient=P[31:0], remainder=P[63:32]
-                        reg [31:0] q, r;
                         q = P[31:0];
                         r = P[63:32];
                         case (cur_op)

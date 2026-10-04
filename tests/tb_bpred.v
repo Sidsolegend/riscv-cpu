@@ -1,13 +1,7 @@
-// ============================================================================
-//  tb_bpred.v  —  self-checking test for the branch predictor
-// ----------------------------------------------------------------------------
-//  Checks the two things that make the predictor correct:
-//    1. 2-bit counter hysteresis — after training a branch taken repeatedly it
-//       predicts taken, and a SINGLE not-taken outcome does not immediately
-//       flip the prediction (that's the whole point of two bits).
-//    2. BTB behaviour — an untrained PC misses (predict not-taken), and once a
-//       taken branch is recorded the predictor returns its exact target.
-// ============================================================================
+// Checks the two things that matter for the predictor: 2-bit counter
+// hysteresis (a single not-taken outcome shouldn't flip a well-trained
+// taken prediction), and BTB behavior (miss on a cold PC, exact target
+// once trained).
 `timescale 1ns/1ps
 
 module tb_bpred;
@@ -78,7 +72,7 @@ module tb_bpred;
         train(0, BR_TGT);                 // 10 -> 01
         expect_pred("second miss flips to not-taken", 1'b0);
 
-        if (errors == 0) $display("RESULT: ALL BRANCH-PREDICTOR TESTS PASSED  \342\234\205");
+        if (errors == 0) $display("RESULT: ALL BRANCH-PREDICTOR TESTS PASSED");
         else             $display("RESULT: %0d BRANCH-PREDICTOR TEST(S) FAILED", errors);
         $finish;
     end

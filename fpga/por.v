@@ -1,12 +1,6 @@
-// ============================================================================
-//  por.v  —  Power-On Reset generator
-// ----------------------------------------------------------------------------
-//  In simulation a testbench just drives `rst` high for a couple of cycles.
-//  On a real FPGA there is no testbench, so the design must reset ITSELF after
-//  configuration: this counter holds `rst` high for the first few cycles after
-//  the bitstream loads, then releases it and stays low forever. Every flop in
-//  the CPU therefore starts from a known state on power-up.
-// ============================================================================
+// Power-on reset. There's no testbench on real hardware to pulse rst for
+// us, so this counter holds reset high for the first CYCLES clocks after
+// the bitstream loads, then releases it for good.
 module por #(
     parameter CYCLES = 64          // how many clocks to assert reset
 )(

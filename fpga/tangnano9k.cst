@@ -1,20 +1,13 @@
-// ============================================================================
-//  tangnano9k.cst  —  physical pin map for soc_tangnano9k on the Tang Nano 9K
-// ----------------------------------------------------------------------------
-//  Maps the top-level port names to balls on the Gowin GW1NR-9 (QN88 package).
-//  The clock, reset button, LEDs and on-board UART pins below are the standard
-//  Tang Nano 9K assignments used by Sipeed's own examples. The LCD pins are
-//  user GPIO on the 2x more header — any free 3.3V I/O works; verify against
-//  your board's silkscreen / schematic before wiring the panel.
-//
-//  Used by the Gowin/open (apicula) flow:  nextpnr --cst fpga/tangnano9k.cst
-// ============================================================================
+// Pin map for soc_tangnano9k on the Tang Nano 9K (Gowin GW1NR-9, QN88).
+// Clock, reset button, LEDs and the UART pin are the standard Tang Nano 9K
+// assignments from Sipeed's examples. The screen pins further down are NOT
+// verified -- see the note there. Used by: nextpnr --cst fpga/tangnano9k.cst
 
 // ---- 27 MHz on-board oscillator --------------------------------------------
-IO_LOC  "clk" 52;
-IO_PORT "clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+IO_LOC  "clk_in" 52;
+IO_PORT "clk_in" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 
-// ---- reset button (active low) ---------------------------------------------
+// ---- reset button S1 (active low: idles high, pressed pulls to ground) ------
 IO_LOC  "btn_rst_n" 4;
 IO_PORT "btn_rst_n" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 
@@ -36,17 +29,22 @@ IO_PORT "led_n[3]" IO_TYPE=LVCMOS33 DRIVE=8;
 IO_PORT "led_n[4]" IO_TYPE=LVCMOS33 DRIVE=8;
 IO_PORT "led_n[5]" IO_TYPE=LVCMOS33 DRIVE=8;
 
-// ---- HD44780 character LCD (4-bit) on the GPIO header -----------------------
-//  RS, E and DB7..DB4. Pick any free 3.3V header pins; these are examples.
-IO_LOC  "lcd_rs" 25;
-IO_LOC  "lcd_e"  26;
-IO_LOC  "lcd_db[0]" 27;   // DB4
-IO_LOC  "lcd_db[1]" 28;   // DB5
-IO_LOC  "lcd_db[2]" 29;   // DB6
-IO_LOC  "lcd_db[3]" 30;   // DB7
-IO_PORT "lcd_rs"    IO_TYPE=LVCMOS33 DRIVE=8;
-IO_PORT "lcd_e"     IO_TYPE=LVCMOS33 DRIVE=8;
-IO_PORT "lcd_db[0]" IO_TYPE=LVCMOS33 DRIVE=8;
-IO_PORT "lcd_db[1]" IO_TYPE=LVCMOS33 DRIVE=8;
-IO_PORT "lcd_db[2]" IO_TYPE=LVCMOS33 DRIVE=8;
-IO_PORT "lcd_db[3]" IO_TYPE=LVCMOS33 DRIVE=8;
+// ---- HDMI port (emulated LVDS pairs) ---------------------------------------
+// From YosysHQ/apicula examples/tangnano9k.cst (its dvi-example), which
+// matches Sipeed's own hdmi example. Each pair is listed as _p and _n.
+IO_LOC  "tmds_clk_p"  69;
+IO_LOC  "tmds_clk_n"  68;
+IO_LOC  "tmds_d_p[0]" 71;
+IO_LOC  "tmds_d_n[0]" 70;
+IO_LOC  "tmds_d_p[1]" 73;
+IO_LOC  "tmds_d_n[1]" 72;
+IO_LOC  "tmds_d_p[2]" 75;
+IO_LOC  "tmds_d_n[2]" 74;
+IO_PORT "tmds_clk_p"  IO_TYPE=LVDS25E PULL_MODE=NONE DRIVE=8;
+IO_PORT "tmds_clk_n"  IO_TYPE=LVDS25E PULL_MODE=NONE DRIVE=8;
+IO_PORT "tmds_d_p[0]" IO_TYPE=LVDS25E PULL_MODE=NONE DRIVE=8;
+IO_PORT "tmds_d_n[0]" IO_TYPE=LVDS25E PULL_MODE=NONE DRIVE=8;
+IO_PORT "tmds_d_p[1]" IO_TYPE=LVDS25E PULL_MODE=NONE DRIVE=8;
+IO_PORT "tmds_d_n[1]" IO_TYPE=LVDS25E PULL_MODE=NONE DRIVE=8;
+IO_PORT "tmds_d_p[2]" IO_TYPE=LVDS25E PULL_MODE=NONE DRIVE=8;
+IO_PORT "tmds_d_n[2]" IO_TYPE=LVDS25E PULL_MODE=NONE DRIVE=8;

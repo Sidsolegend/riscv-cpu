@@ -1,32 +1,26 @@
-// ============================================================================
-//  tb_soc.v  —  end-to-end test of the FPGA SoC (CPU -> FIFO -> real UART)
-// ----------------------------------------------------------------------------
-//  This is the closest thing to "flashing the board" that runs in simulation.
-//  It instantiates the actual top level (soc_tangnano9k), lets the CPU execute
-//  programs/hello.hex, and decodes the physical uart_tx_pin with a real uart_rx
-//  — exactly what the USB-serial bridge does on the board. If the assembled
-//  bytes spell out the greeting, the whole hardware path is proven: the store
-//  strobe, the FIFO buffering, and the 8N1 serialisation, all together.
-//
-//  A tiny CLK_HZ/BAUD keeps the bit periods short so it finishes quickly.
-// ============================================================================
+// End-to-end SoC test: instantiates the actual soc_tangnano9k top level,
+// runs programs/hello.hex, and decodes uart_tx_pin with a real uart_rx --
+// the same thing the board's USB bridge does. If the greeting comes out
+// right, the store strobe, FIFO buffering, and 8N1 serialization are all
+// proven together. Tiny CLK_HZ/BAUD to keep this fast.
 `timescale 1ns/1ps
 
 module tb_soc;
     localparam CLK_HZ = 1_000_000, BAUD = 100_000;
 
     reg clk = 0, btn_rst_n = 1, mon_rst = 1;
-    wire uart_line, lcd_rs, lcd_e;
-    wire [3:0] lcd_db;
+    wire uart_line, tmds_clk_p, tmds_clk_n;
+    wire [2:0] tmds_d_p, tmds_d_n;
     wire [5:0] led_n;
 
     soc_tangnano9k #(
         .CLK_HZ(CLK_HZ), .BAUD(BAUD),
         .PROG("programs/hello.hex"), .DATA("programs/hello.data.hex")
     ) DUT (
-        .clk(clk), .btn_rst_n(btn_rst_n),
+        .clk_in(clk), .btn_rst_n(btn_rst_n),
         .uart_tx_pin(uart_line),
-        .lcd_rs(lcd_rs), .lcd_e(lcd_e), .lcd_db(lcd_db), .led_n(led_n)
+        .tmds_clk_p(tmds_clk_p), .tmds_clk_n(tmds_clk_n),
+        .tmds_d_p(tmds_d_p), .tmds_d_n(tmds_d_n), .led_n(led_n)
     );
 
     // Decode the serial line the same way the board's USB bridge would.
@@ -76,7 +70,7 @@ module tb_soc;
                 $display("  PASS  received \"HELLO FROM MY RISC-V CPU!\" over uart_tx_pin");
         end
 
-        if (errors == 0) $display("RESULT: SoC END-TO-END TEST PASSED  \342\234\205");
+        if (errors == 0) $display("RESULT: SoC END-TO-END TEST PASSED");
         else             $display("RESULT: %0d SoC TEST FAILURE(S)", errors);
         $finish;
     end

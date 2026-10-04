@@ -1,11 +1,6 @@
-// ============================================================================
-//  tb_pipeline.v  —  Self-checking testbench for the 5-stage pipelined core
-// ----------------------------------------------------------------------------
-//  Runs the SAME program as the single-cycle core and checks for the SAME
-//  final results. If the pipeline's forwarding, stalling, and branch-flush
-//  logic are all correct, a program full of data/control hazards must still
-//  produce identical answers to the simple design — that's the whole test.
-// ============================================================================
+// Same self-checking test as tb_single.v, run against the pipelined core.
+// If forwarding/stalling/flush are all correct, the same program full of
+// hazards should still land on identical final values.
 `timescale 1ns/1ps
 
 module tb_pipeline;
@@ -43,10 +38,7 @@ module tb_pipeline;
         repeat (2) @(posedge clk);
         rst = 0;
 
-        // More cycles than single-cycle: each taken jump/branch costs a couple
-        // flush bubbles, so the pipelined run takes longer in cycles (but each
-        // cycle is far cheaper in a real chip). 400 is plenty for this program.
-        repeat (400) @(posedge clk);
+        repeat (400) @(posedge clk);   // more cycles than single-cycle: flush bubbles add up
 
         $display("");
         $display("==== pipelined CPU results ====");
@@ -57,8 +49,8 @@ module tb_pipeline;
         check("mem[0]     ", dut.DMEM.mem[0], 32'd55);
 
         $display("");
-        if (errors == 0) $display("RESULT: ALL TESTS PASSED  ✅");
-        else             $display("RESULT: %0d TEST(S) FAILED  ❌", errors);
+        if (errors == 0) $display("RESULT: ALL TESTS PASSED");
+        else             $display("RESULT: %0d TEST(S) FAILED", errors);
         $display("");
         $finish;
     end

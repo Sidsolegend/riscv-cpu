@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""
-bin2hex.py — convert a raw binary section image into the $readmemh word format
-the cores load (one little-endian 32-bit word per line).
+"""Convert a raw binary section into the $readmemh word format the cores
+load (one little-endian 32-bit word per line).
 
     python3 tools/bin2hex.py section.bin > section.hex
 
-Used by the C build flow (sw/): the RISC-V GCC toolchain produces an ELF, then
-`objcopy -O binary` dumps the .text and .data sections to raw .bin files, and
-this turns each into the hex image imem/dmem read with $readmemh. The core uses
-separate instruction and data memories, so .text and .data are converted
-independently — see sw/link.ld and sw/README.md.
+Used by the C build flow in sw/: objcopy dumps .text/.data from the ELF to
+raw .bin, and this turns each into the hex image imem/dmem reads. Kept
+separate per section since the core has separate instruction/data memories
+-- see sw/link.ld.
 """
 import sys
 

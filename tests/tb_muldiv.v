@@ -1,13 +1,7 @@
-// ============================================================================
-//  tb_muldiv.v  —  differential test: sequential mul/div vs the trusted ALU
-// ----------------------------------------------------------------------------
-//  The combinational ALU already passes the full M-extension suite, so it makes
-//  a perfect reference oracle. This bench drives the same (op, a, b) into both
-//  the ALU and the multi-cycle muldiv_seq unit and asserts the results match —
-//  first on the spec's nasty edge cases, then across a large pseudo-random
-//  sweep. If the bit-serial shift-add / restoring-divide datapaths are correct,
-//  they agree with the reference on every single input.
-// ============================================================================
+// Differential test for muldiv_seq against the ALU's combinational
+// mul/div, which already passes the full M-extension suite so it works
+// fine as the reference. Same (op, a, b) into both, check they agree --
+// first on the spec's edge cases, then a large pseudo-random sweep.
 `timescale 1ns/1ps
 `include "defines.vh"
 
@@ -76,7 +70,7 @@ module tb_muldiv;
             check($random % 8, $random, $random);
 
         if (errors == 0)
-            $display("RESULT: ALL %0d MULDIV TESTS PASSED  \342\234\205", total);
+            $display("RESULT: ALL %0d MULDIV TESTS PASSED", total);
         else
             $display("RESULT: %0d / %0d MULDIV TESTS FAILED", errors, total);
         $finish;

@@ -1,25 +1,16 @@
-// ============================================================================
-//  lcd_hd44780.v  —  driver for a 16x2 character LCD (HD44780) in 4-bit mode
-// ----------------------------------------------------------------------------
-//  This is the "second peripheral": a memory-mapped store to MMIO_LCD sends a
-//  character here and it appears on the panel wired to the board's GPIO. Unlike
-//  the graphical SPI screens, the HD44780 has its own character-generator ROM,
-//  so we only ever push it ASCII bytes and a couple of control commands — no
-//  framebuffer or font rendering needed.
+// HD44780 16x2 character LCD driver, 4-bit mode. A store to MMIO_LCD lands
+// here as one byte; the HD44780 has its own character ROM, so we just push
+// ASCII + a few control commands, no framebuffer needed.
 //
-//  4-bit mode: only DB7..DB4 are wired, so every 8-bit value goes out as TWO
-//  nibbles (high then low), each latched by a pulse on the E (enable) line.
-//  RW is tied low on the board (write-only), so instead of polling the LCD's
-//  busy flag we simply wait the datasheet-worst-case time after each byte.
+// Only DB7..DB4 are wired, so every byte goes out as two nibbles (high
+// then low), each latched by a pulse on E. RW is tied low on the board, so
+// instead of polling the busy flag we wait the datasheet's worst-case
+// delay after each nibble.
 //
-//  On reset the FSM runs the mandatory power-on initialisation sequence
-//  (the famous 0x3,0x3,0x3,0x2 wake-up, then function-set / display-on /
-//  clear / entry-mode) before accepting characters. `busy` is high until init
-//  finishes and while any byte is being clocked out; the top level only asserts
-//  `wr` when `busy` is low.
-//
-//  Timing is derived from CLK_HZ, so it is correct at any clock the board runs.
-// ============================================================================
+// On reset the FSM runs the mandatory power-on init sequence (the
+// 0x3,0x3,0x3,0x2 wake-up, then function-set/display-on/clear/entry-mode)
+// before accepting characters -- `busy` covers both that and any byte
+// currently being clocked out. All timing is derived from CLK_HZ.
 module lcd_hd44780 #(
     parameter CLK_HZ = 27_000_000
 )(

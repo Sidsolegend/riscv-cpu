@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
-"""
-asm.py — a small two-pass RV32IM assembler for the riscv-cpu project.
+"""Small two-pass RV32IM assembler for the riscv-cpu project.
 
-Turns human-readable assembly (programs/*.s) into the hex images the cores
-load with $readmemh:
+Turns assembly (programs/*.s) into the hex images the cores load with
+$readmemh:
 
     python3 tools/asm.py programs/hello.s
         -> programs/hello.hex          (.text  -> instruction memory)
         -> programs/hello.data.hex     (.data  -> data memory, if any)
 
-Why it exists: without a toolchain you hand-encode 32-bit instructions one
-bit-field at a time. With it, the CPU becomes a real target you can write
-applications for. It supports every instruction the cores implement
-(RV32I + the M extension), labels, a .data section, and the usual pseudo
-instructions (li / la / mv / j / call / ret / beqz / ...).
+Supports every instruction the cores implement (RV32I + M), labels, a
+.data section, and the usual pseudo instructions (li / la / mv / j /
+call / ret / beqz / ...).
 
 Syntax (one instruction or directive per line):
     label:            define a label (text: byte address of next instr;

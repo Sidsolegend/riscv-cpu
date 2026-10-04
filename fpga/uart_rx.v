@@ -1,19 +1,8 @@
-// ============================================================================
-//  uart_rx.v  —  synthesizable 8N1 UART receiver
-// ----------------------------------------------------------------------------
-//  The mirror image of uart_tx: it watches the serial line for a start bit
-//  (a high->low transition), then samples the middle of each of the 8 data
-//  bits one bit-period apart, and finally pulses `valid` for one clock with
-//  the assembled byte on `data`.
-//
-//  Sampling at the MIDDLE of each bit (start + 1.5 bit periods for the first
-//  data bit, then +1 each) is the standard way to tolerate small clock/baud
-//  mismatches between the two ends — you're as far as possible from either
-//  edge where the line is transitioning.
-//
-//  The incoming line is double-flopped first (rx_sync) to remove metastability
-//  from this asynchronous input — mandatory for a real clock domain crossing.
-// ============================================================================
+// Mirror of uart_tx: watches for a start bit, samples each of the 8 data
+// bits at the middle of its bit period (most tolerant of clock/baud
+// mismatch between the two ends), then pulses `valid` with the byte.
+// rx is double-flopped first (rx_sync0/rx_sync) since it's an async input
+// crossing into this clock domain and needs the usual metastability guard.
 module uart_rx #(
     parameter CLK_HZ = 27_000_000,
     parameter BAUD   = 115200

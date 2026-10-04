@@ -1,27 +1,19 @@
-// ============================================================================
-//  branch_predictor.v  —  2-bit saturating-counter predictor + BTB
-// ----------------------------------------------------------------------------
-//  The pipeline resolves branches in EX, so every TAKEN branch throws away the
-//  two instructions fetched behind it (a 2-cycle flush). On a loop that runs a
-//  thousand times, that's two wasted cycles a thousand times. A branch
-//  predictor guesses the outcome in the FETCH stage so the common case — the
-//  loop branch that is taken again and again — costs nothing.
+// 2-bit saturating-counter branch predictor + BTB. The pipeline resolves
+// branches in EX, so every taken branch flushes the 2 instructions fetched
+// behind it -- on a loop running a thousand times that's a thousand
+// 2-cycle flushes. Predicting the outcome in fetch makes the common case
+// (a loop branch taken over and over) free.
 //
-//  Two tables, indexed by the low PC bits:
-//    * BHT — a 2-bit saturating counter per entry. Values mean
-//        00 strongly-not-taken  01 weakly-not-taken
-//        10 weakly-taken        11 strongly-taken
-//      The top bit is the prediction. Two bits (not one) give hysteresis: a
-//      single surprise doesn't flip a well-established prediction, so the last
-//      iteration of a loop doesn't poison the next run.
-//    * BTB — remembers the TARGET of a taken branch (tagged + valid), so the
-//      fetch stage knows *where* to redirect, not just that it should.
+// BHT: one 2-bit counter per entry (00/01 = not-taken, 10/11 = taken, top
+// bit is the guess). Two bits instead of one gives hysteresis, so a single
+// surprising iteration doesn't flip a prediction that's otherwise reliable.
+// BTB: remembers the target of a taken branch (tagged + valid) so fetch
+// knows where to redirect, not just whether to.
 //
-//  Predict combinationally from `pc_predict`; when a branch resolves, pulse
-//  `update_en` with its real PC/outcome/target to train both tables. This is a
-//  drop-in module — see docs/ROADMAP.md for wiring it into the IF stage — and
-//  is verified in tests/tb_bpred.v (counter hysteresis + BTB hit/miss).
-// ============================================================================
+// Predict combinationally off `pc_predict`; when a branch resolves in EX,
+// pulse `update_en` with the real outcome to train both tables. Not yet
+// wired into the IF stage (see docs/ROADMAP.md) -- exercised standalone in
+// tests/tb_bpred.v.
 module branch_predictor #(
     parameter IDX = 6                       // 2^IDX entries per table
 )(

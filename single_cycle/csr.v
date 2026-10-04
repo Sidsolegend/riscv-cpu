@@ -1,61 +1,38 @@
-// ============================================================================
-//  csr.v  —  Control & Status Registers + machine-mode trap logic (Zicsr)
-// ----------------------------------------------------------------------------
-//  This is what turns a bare datapath into something an operating system (or
-//  at least an interrupt handler) could run on. It holds the machine-mode CSRs
-//  and implements the three things a trap needs:
+// Machine-mode CSRs + trap logic (Zicsr). Handles csrrw/csrrs/csrrc[i],
+// taking a trap on ecall/ebreak/illegal-instr/timer-irq, and mret.
 //
-//    1. CSR read-modify-write  — csrrw / csrrs / csrrc (and the *i immediate
-//       forms). Software reads the old value into rd and writes a new one.
+// The timer is intentionally minimal: mcycle free-runs, and an interrupt
+// fires once mcycle >= mtimecmp (gated by mie.MTIE and mstatus.MIE).
+// Writing mtimecmp (custom CSR 0x7C0) arms and acks it in one shot --
+// same idea as a CLINT, just riding on a CSR instead of a separate MMIO
+// register.
 //
-//    2. Taking a trap          — on ecall / ebreak / illegal-instruction, or a
-//       pending machine-timer interrupt, we save the current PC into mepc, the
-//       reason into mcause, disable interrupts (MPIE<-MIE, MIE<-0), and hand
-//       the top level a vector address (mtvec) to jump to.
-//
-//    3. Returning from a trap  — mret restores MIE from MPIE and hands back
-//       mepc so the top level can resume the interrupted program.
-//
-//  The machine timer is deliberately simple: mcycle is a free-running counter,
-//  and an interrupt is requested whenever (mie.MTIE & mcycle >= mtimecmp).
-//  Writing mtimecmp (custom CSR 0x7C0) both arms and acknowledges the timer,
-//  exactly like a real CLINT — just via a CSR instead of a memory-mapped reg,
-//  to keep the datapath self-contained.
-//
-//  Purely machine mode, single hart — no delegation, no user/supervisor. That
-//  is all this core needs, and it maps 1:1 onto the RISC-V privileged spec.
-// ============================================================================
+// Machine mode only, single hart, no delegation -- that's the whole scope.
 `include "defines.vh"
 
 module csr (
     input  wire        clk,
     input  wire        rst,
 
-    // ---- CSR access port (driven by csrrw/csrrs/csrrc[i]) ------------------
     input  wire        csr_access,   // a CSR instruction is executing
-    input  wire [11:0] csr_addr,     // which CSR (instr[31:20])
+    input  wire [11:0] csr_addr,     // instr[31:20]
     input  wire [2:0]  csr_cmd,      // funct3: CSR_RW / CSR_RS / CSR_RC / *I
     input  wire [31:0] csr_wsrc,     // rs1 value, or the zero-extended imm
-    input  wire        csr_rs1_nz,   // rs1 field != 0 (rs/rc skip write if zero)
+    input  wire        csr_rs1_nz,   // rs/rc skip the write when rs1 == 0
     output reg  [31:0] csr_rdata,    // old value of the addressed CSR -> rd
 
-    // ---- trap request from the datapath ------------------------------------
-    input  wire        ex_valid,     // the instruction in flight actually retires
-    input  wire [31:0] pc,           // PC of that instruction (candidate mepc)
-    input  wire        exc_ecall,    // ecall  encountered
-    input  wire        exc_ebreak,   // ebreak encountered
-    input  wire        exc_illegal,  // illegal / unimplemented instruction
-    input  wire        do_mret,      // mret encountered
+    input  wire        ex_valid,     // instruction in flight actually retires
+    input  wire [31:0] pc,           // candidate mepc
+    input  wire        exc_ecall,
+    input  wire        exc_ebreak,
+    input  wire        exc_illegal,
+    input  wire        do_mret,
 
-    // ---- trap response to the datapath -------------------------------------
-    output wire        trap,         // take a trap THIS cycle -> redirect to mtvec
-    output wire [31:0] trap_vector,  // where to jump on a trap (mtvec, direct)
-    output wire        mret,         // returning from a trap -> redirect to mepc
-    output wire [31:0] mret_target   // mepc
+    output wire        trap,         // take a trap this cycle -> jump to mtvec
+    output wire [31:0] trap_vector,
+    output wire        mret,         // return from trap -> jump to mepc
+    output wire [31:0] mret_target
 );
-    // -------------------------------------------------------------------------
-    //  The register state
-    // -------------------------------------------------------------------------
     reg [31:0] mstatus;     // only MIE (bit 3) and MPIE (bit 7) are meaningful
     reg [31:0] mtvec;       // trap vector base (direct mode: low 2 bits = 0)
     reg [31:0] mepc;        // PC saved on trap
@@ -67,37 +44,27 @@ module csr (
     reg [31:0] minstret;    // retired-instruction counter
     reg [31:0] mtimecmp;    // machine-timer compare value
 
-    // -------------------------------------------------------------------------
-    //  Interrupt request: level-triggered while mcycle has reached mtimecmp.
-    //  Gated by both the global enable (mstatus.MIE) and the timer enable
-    //  (mie.MTIE). mtimecmp==0 means "timer disabled" (its reset state), so
-    //  none of the existing programs ever see an interrupt.
-    // -------------------------------------------------------------------------
+    // level-triggered while mcycle >= mtimecmp; mtimecmp == 0 (its reset
+    // value) means the timer is off, so nothing fires until software arms it
     wire timer_fire = (mtimecmp != 32'd0) && (mcycle >= mtimecmp);
     wire mtip       = timer_fire;                       // mip.MTIP (live)
     wire irq_timer  = mstatus[`MSTATUS_MIE] & mie[`IRQ_MTIP] & mtip;
 
-    // A synchronous exception from the current instruction.
     wire exc_sync = exc_ecall | exc_ebreak | exc_illegal;
 
-    // Take a trap when the in-flight instruction retires and either an
-    // interrupt is pending or it raised a synchronous exception. Interrupts
-    // are taken with priority (checked first below when forming the cause).
     assign trap        = ex_valid & (irq_timer | exc_sync);
     assign trap_vector = {mtvec[31:2], 2'b00};          // direct mode
     assign mret        = ex_valid & do_mret;
     assign mret_target = mepc;
 
-    // Cause encoding (interrupt wins over a simultaneous synchronous exception).
+    // interrupt wins if both fire in the same cycle
     wire [31:0] cause =
         irq_timer   ? `CAUSE_MTIMER  :
         exc_illegal ? `CAUSE_ILLEGAL :
         exc_ebreak  ? `CAUSE_EBREAK  :
                       `CAUSE_ECALL_M ;
 
-    // -------------------------------------------------------------------------
-    //  CSR read (combinational). Unimplemented CSRs read as 0.
-    // -------------------------------------------------------------------------
+    // unimplemented CSRs read as 0
     always @(*) begin
         case (csr_addr)
             `CSR_MSTATUS : csr_rdata = mstatus;
@@ -119,7 +86,6 @@ module csr (
         endcase
     end
 
-    // The value a csrrw/csrrs/csrrc[i] wants to store (based on the old value).
     reg [31:0] csr_next;
     always @(*) begin
         case (csr_cmd)
@@ -129,16 +95,12 @@ module csr (
             default          : csr_next = csr_rdata;
         endcase
     end
-    // csrrs/csrrc (and their immediate forms) with a zero source do NOT write
-    // (so a plain csr-read has no side effects). csrrw always writes.
+    // csrrw always writes; csrrs/csrrc with rs1==0 don't (so a plain
+    // csr-read has no side effect)
     wire csr_will_write = csr_access &
         ((csr_cmd == `CSR_RW) || (csr_cmd == `CSR_RWI) || csr_rs1_nz);
 
-    // -------------------------------------------------------------------------
-    //  Sequential update. Precedence each cycle:
-    //     reset  >  trap entry  >  mret  >  explicit CSR write
-    //  The counters always advance.
-    // -------------------------------------------------------------------------
+    // priority each cycle: reset > trap entry > mret > explicit CSR write
     integer unused;
     always @(posedge clk) begin
         if (rst) begin

@@ -1,20 +1,11 @@
-// ============================================================================
-//  uart_tx.v  —  synthesizable 8N1 UART transmitter
-// ----------------------------------------------------------------------------
-//  The sim console printed characters with $write; that is a simulator trick,
-//  not hardware. THIS is the real thing: it serialises a byte onto a single
-//  wire as a start bit (0), eight data bits (LSB first), and a stop bit (1),
-//  each held for exactly one bit-period. Wire the `tx` output to the Tang Nano
-//  9K's on-board USB-serial bridge and the bytes appear in a terminal on your
-//  computer over the same USB cable that programs the board.
+// 8N1 UART transmitter -- $write in the sim testbenches is a simulator
+// shortcut, this is the actual serializer: start bit, 8 data bits LSB
+// first, stop bit, each held for CLK_HZ/BAUD clocks (234 clocks/bit at
+// 27 MHz / 115200 on the Tang Nano 9K). Wire `tx` to the board's USB-serial
+// bridge and it shows up in a terminal over the same USB cable.
 //
-//    bit period (in clocks) = CLK_HZ / BAUD
-//    e.g. 27 MHz / 115200 = 234 clocks per bit
-//
-//  Handshake: assert `wr` for one clock with the byte on `data` while `busy`
-//  is low. The byte is latched and sent; `busy` stays high until the stop bit
-//  completes. Line idles high.
-// ============================================================================
+// Handshake: pulse `wr` with `data` while `busy` is low; busy stays high
+// until the stop bit finishes.
 module uart_tx #(
     parameter CLK_HZ = 27_000_000,
     parameter BAUD   = 115200

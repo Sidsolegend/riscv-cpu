@@ -1,18 +1,16 @@
-// ============================================================================
-//  tb_diff.v  —  differential equivalence check: single-cycle vs pipeline
-// ----------------------------------------------------------------------------
-//  The strongest correctness argument in the whole project: take the SAME
-//  program, run it on BOTH cores, and prove they end in byte-for-byte identical
-//  architectural state (all 32 registers + the low data memory). The two cores
-//  share nothing but the ISA — one executes an instruction per cycle, the other
-//  overlaps five with forwarding, stalls and flushes — so if every register and
-//  memory word agrees, the pipeline's hazard machinery is provably transparent.
-//
-//  This is exactly how real CPUs are validated: a simple reference model and a
-//  fast implementation, cross-checked on the same stimulus. Point it at any
-//  non-CSR program via +define+; the Makefile runs it on fib and the M-ext test.
-// ============================================================================
+// Runs the same program on both cores and diffs the final architectural
+// state (all 32 registers + the low data memory). The two implementations
+// share nothing but the ISA -- one instruction per cycle vs. five
+// overlapping with forwarding/stalls/flushes -- so agreement here is the
+// strongest evidence the pipeline's hazard handling is actually
+// transparent. Same idea as validating real silicon against a reference
+// model. Point at a different program with +define+PROG_HEX=...; the
+// Makefile runs this on fib and the M-ext test.
 `timescale 1ns/1ps
+
+`ifndef SEQ_DIV_VAL
+`define SEQ_DIV_VAL 0
+`endif
 
 `ifndef PROG_HEX
 `define PROG_HEX "programs/fib.hex"
@@ -26,7 +24,7 @@ module tb_diff;
     wire [31:0] pc_a, ins_a, pc_b, ins_b;
     wire        halt_a, halt_b;
 
-    riscv_single #(.PROG(`PROG_HEX), .DATA(`DATA_HEX)) SC (
+    riscv_single #(.PROG(`PROG_HEX), .DATA(`DATA_HEX), .SEQ_DIV(`SEQ_DIV_VAL)) SC (
         .clk(clk), .rst(rst), .pc_out(pc_a), .instr_out(ins_a), .halted(halt_a));
 
     riscv_pipeline #(.PROG(`PROG_HEX), .DATA(`DATA_HEX)) PIPE (
@@ -66,7 +64,7 @@ module tb_diff;
         end
 
         if (errors == 0)
-            $display("RESULT: CORES AGREE on registers + memory  \342\234\205");
+            $display("RESULT: CORES AGREE on registers + memory");
         else
             $display("RESULT: %0d DIFFERENCE(S) between the cores", errors);
         $finish;

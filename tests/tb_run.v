@@ -1,16 +1,13 @@
-// ============================================================================
-//  tb_run.v — generic application runner ("power on and watch it go")
-// ----------------------------------------------------------------------------
-//  Loads a program (+ optional data image), releases reset, and lets the CPU
-//  run until the program stores to the HALT device. Anything the program
-//  writes to the UART appears on the console — this is how the demo apps
-//  (hello, fib) print. Also reports how many cycles the program took.
-//
-//  The program and core are chosen at compile time:
-//     iverilog -DPROG_HEX='"programs/hello.hex"' \
-//              -DDATA_HEX='"programs/hello.data.hex"' [-DUSE_PIPE] ...
-// ============================================================================
+// Generic app runner: load a program, release reset, run until it stores
+// to HALT. UART writes just print to the console -- this is how hello/fib
+// show their output. Program + core picked at compile time:
+//   iverilog -DPROG_HEX='"programs/hello.hex"' \
+//            -DDATA_HEX='"programs/hello.data.hex"' [-DUSE_PIPE] ...
 `timescale 1ns/1ps
+
+`ifndef SEQ_DIV_VAL
+`define SEQ_DIV_VAL 0
+`endif
 
 `ifndef PROG_HEX
 `define PROG_HEX "programs/hello.hex"
@@ -31,7 +28,7 @@ module tb_run;
         (.clk(clk), .rst(rst), .pc_out(pc), .instr_out(instr), .halted(halted));
     localparam CORE = "5-stage pipeline";
 `else
-    riscv_single #(.PROG(`PROG_HEX), .DATA(`DATA_HEX)) dut
+    riscv_single #(.PROG(`PROG_HEX), .DATA(`DATA_HEX), .SEQ_DIV(`SEQ_DIV_VAL)) dut
         (.clk(clk), .rst(rst), .pc_out(pc), .instr_out(instr), .halted(halted));
     localparam CORE = "single-cycle";
 `endif

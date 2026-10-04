@@ -14,7 +14,7 @@ ready to wire into the datapath.
   (`single_cycle/csr.v`). Demoed by `programs/traps.s`.
 - **Memory-mapped I/O** — UART, cycle timer, HALT, and an LCD device.
 - **FPGA SoC** — `fpga/soc_tangnano9k.v`: the core plus a real UART transmitter,
-  an HD44780 LCD driver, a power-on reset and FIFOs, all self-checked, with a
+  an HDMI text terminal, a power-on reset and FIFOs, all self-checked, with a
   full end-to-end SoC test. See `docs/FPGA.md`.
 - **Assembler** — RV32IM + Zicsr + pseudo-ops + `.data` and raw `.word` in
   `.text` (`tools/asm.py`).

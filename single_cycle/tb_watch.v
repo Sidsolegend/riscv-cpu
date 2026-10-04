@@ -1,11 +1,7 @@
-// ============================================================================
-//  tb_watch.v  —  WATCH the single-cycle CPU execute, one cycle at a time
-// ----------------------------------------------------------------------------
-//  Unlike tb_single.v (which only checks final PASS/FAIL), this testbench
-//  prints what the CPU is doing EVERY cycle: which instruction it fetched,
-//  what it decoded to in plain assembly, and what changed as a result.
-//  This is the "see it happen" view.
-// ============================================================================
+// Cycle-by-cycle trace of the single-cycle core: prints PC, raw instruction,
+// a rough disassembly, and the watched registers every clock. Useful for
+// tracking down exactly where a wrong result comes from (this is what
+// caught the WB/ID hazard on the pipeline -- see the debugging notes).
 `timescale 1ns/1ps
 
 module tb_watch;

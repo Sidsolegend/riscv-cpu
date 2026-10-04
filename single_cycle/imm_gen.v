@@ -1,24 +1,13 @@
-// ============================================================================
-//  imm_gen.v  —  Immediate Generator
-// ----------------------------------------------------------------------------
-//  Many instructions carry a constant ("immediate") baked into the instruction
-//  word — e.g. the 12 in `addi x1, x0, 12`, or the branch offset in `beq`.
-//  The problem: RISC-V scrambles the immediate's bits into DIFFERENT positions
-//  depending on the instruction format (I, S, B, U, J). This module untangles
-//  them and produces a clean, SIGN-EXTENDED 32-bit immediate.
+// Immediate generator. RV32I splits the immediate bits across different
+// positions per instruction format, so this just untangles them and
+// sign-extends to 32 bits. Bit layout per format (instr[31] is always
+// the sign bit, that part's consistent):
 //
-//  "Sign-extended" means: if the immediate is negative (its top bit is 1), we
-//  copy that 1 into all the upper bits so the 32-bit value has the same signed
-//  meaning. RISC-V deliberately puts the sign bit at instr[31] in every format
-//  so this is uniform.
-//
-//  Bit-scrambling reference (RV32I):
-//    I-type : imm = instr[31:20]
-//    S-type : imm = instr[31:25], instr[11:7]
-//    B-type : imm = instr[31], instr[7], instr[30:25], instr[11:8], 0
-//    U-type : imm = instr[31:12] << 12
-//    J-type : imm = instr[31], instr[19:12], instr[20], instr[30:21], 0
-// ============================================================================
+//   I-type : imm = instr[31:20]
+//   S-type : imm = instr[31:25], instr[11:7]
+//   B-type : imm = instr[31], instr[7], instr[30:25], instr[11:8], 0
+//   U-type : imm = instr[31:12] << 12
+//   J-type : imm = instr[31], instr[19:12], instr[20], instr[30:21], 0
 `include "defines.vh"
 
 module imm_gen (

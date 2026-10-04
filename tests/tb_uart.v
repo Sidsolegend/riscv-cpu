@@ -1,11 +1,6 @@
-// ============================================================================
-//  tb_uart.v  —  self-checking test for the real UART (TX -> RX loopback)
-// ----------------------------------------------------------------------------
-//  Wires uart_tx's serial output straight into uart_rx and sends several bytes
-//  through. If the transmitter's framing and the receiver's mid-bit sampling
-//  are both correct, every byte comes back out bit-for-bit. Uses a tiny
-//  clock/baud divisor so the whole thing runs fast in simulation.
-// ============================================================================
+// TX->RX loopback: wires uart_tx's serial line straight into uart_rx and
+// round-trips a handful of bytes. Small clock/baud divisor to keep this
+// fast in sim.
 `timescale 1ns/1ps
 
 module tb_uart;
@@ -71,7 +66,7 @@ module tb_uart;
         send_and_check(8'hFF);   // all ones
         send_and_check(8'h55);   // 0101...
         send_and_check(8'hAA);   // 1010...
-        if (errors == 0) $display("RESULT: ALL UART TESTS PASSED  \342\234\205");
+        if (errors == 0) $display("RESULT: ALL UART TESTS PASSED");
         else             $display("RESULT: %0d UART TEST(S) FAILED", errors);
         $finish;
     end

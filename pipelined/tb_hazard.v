@@ -1,10 +1,6 @@
-// ============================================================================
-//  tb_hazard.v  —  proves forwarding + load-use stall work on the pipeline
-// ----------------------------------------------------------------------------
-//  Runs programs/hazards.hex, whose every instruction depends on the previous
-//  one. Correct results here mean the forwarding_unit and hazard_unit are
-//  doing their jobs.
-// ============================================================================
+// Runs programs/hazards.hex, where every instruction depends on the one
+// before it -- correct results here mean forwarding_unit and hazard_unit
+// are actually doing their jobs, not just passing the easy cases.
 `timescale 1ns/1ps
 
 module tb_hazard;
@@ -47,8 +43,8 @@ module tb_hazard;
         check("mem[0]", dut.DMEM.mem[0], 32'd25);
 
         $display("");
-        if (errors == 0) $display("RESULT: ALL HAZARD TESTS PASSED  ✅");
-        else             $display("RESULT: %0d HAZARD TEST(S) FAILED  ❌", errors);
+        if (errors == 0) $display("RESULT: ALL HAZARD TESTS PASSED");
+        else             $display("RESULT: %0d HAZARD TEST(S) FAILED", errors);
         $display("");
         $finish;
     end

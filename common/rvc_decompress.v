@@ -1,22 +1,14 @@
-// ============================================================================
-//  rvc_decompress.v  —  expand a 16-bit RVC instruction into its 32-bit form
-// ----------------------------------------------------------------------------
-//  The "C" (compressed) extension lets the most common instructions be encoded
-//  in 16 bits instead of 32, shrinking code by ~25-30%. The elegant part: a
-//  compressed instruction is always exactly equivalent to one ordinary 32-bit
-//  instruction, so a core can support C with a purely combinational
-//  DECOMPRESSOR in front of the decoder — the rest of the datapath never has to
-//  know. This is that block.
+// Expands a 16-bit RVC instruction into its exactly-equivalent 32-bit form,
+// so the rest of the datapath never needs to know C exists -- this is a
+// purely combinational decompressor sitting in front of the regular
+// decoder. Covers the RV32C quadrants below; anything reserved/unknown
+// raises `illegal`. Wiring this into fetch also needs a PC that steps by 2
+// and can reassemble a 32-bit instruction straddling a 4-byte boundary --
+// not done here, see docs/ROADMAP.md. Checked against golden 32-bit
+// encodings in tests/tb_rvc.v.
 //
-//  It covers the RV32C set (the quadrants below). Anything reserved/unknown
-//  raises `illegal`. Wiring it into fetch also needs a PC that can step by 2
-//  and reassemble 32-bit instructions that straddle a 4-byte boundary — see
-//  docs/ROADMAP.md; this module is the hard combinational core of that work and
-//  is verified against golden 32-bit encodings in tests/tb_rvc.v.
-//
-//  The RVC immediate bit-scrambling is famously irregular; each case below is
-//  annotated with the field mapping from the RISC-V spec.
-// ============================================================================
+// The RVC immediate encoding is notoriously irregular, so each case below
+// is annotated with its field mapping straight from the spec.
 module rvc_decompress (
     input  wire [15:0] c,          // the 16-bit compressed instruction
     output reg  [31:0] insn,       // equivalent 32-bit instruction

@@ -1,13 +1,8 @@
-// ============================================================================
-//  tb_lcd.v  —  self-checking test for the HD44780 LCD driver
-// ----------------------------------------------------------------------------
-//  Can't attach a real panel in simulation, so instead we verify the part that
-//  actually has logic: after the init sequence completes (busy falls), sending
-//  a character must clock out its HIGH nibble then its LOW nibble, each with
-//  RS=1 (data) and each latched by a rising edge on E. We snoop the E strobe
-//  and check the (rs, nibble) pairs. Uses a tiny CLK_HZ so the datasheet delays
-//  collapse to a few cycles.
-// ============================================================================
+// No real panel in sim, so this checks the part that has actual logic:
+// after init completes, sending a character should clock out its high
+// nibble then low nibble, both RS=1, each latched on a rising E edge. We
+// snoop the E strobe and check the (rs, nibble) pairs. Tiny CLK_HZ so the
+// datasheet delays collapse to a few cycles.
 `timescale 1ns/1ps
 
 module tb_lcd;
@@ -66,7 +61,7 @@ module tb_lcd;
             errors = errors + 1;
         end else $display("  PASS  low nibble:  RS=1 data=0x8");
 
-        if (errors == 0) $display("RESULT: ALL LCD TESTS PASSED  \342\234\205");
+        if (errors == 0) $display("RESULT: ALL LCD TESTS PASSED");
         else             $display("RESULT: %0d LCD TEST(S) FAILED", errors);
         $finish;
     end
