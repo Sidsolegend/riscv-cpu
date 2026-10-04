@@ -22,7 +22,13 @@ module riscv_single #(
     // surfaced for the FPGA top; unused in plain sim
     output wire        io_uart_we,
     output wire        io_lcd_we,
-    output wire [7:0]  io_wbyte
+    output wire [7:0]  io_wbyte,
+    // program loading (fpga/uart_loader.v), only while rst holds the CPU;
+    // tie to 0 when unused
+    input  wire        ld_imem_we,
+    input  wire        ld_dmem_we,
+    input  wire [31:0] ld_addr,     // byte address
+    input  wire [31:0] ld_data
 );
 
     reg  [31:0] pc;
@@ -37,7 +43,9 @@ module riscv_single #(
     assign pc_out = pc;
 
     wire [31:0] instr;
-    imem #(.MEM_WORDS(IMEM_WORDS), .PROG(PROG)) IMEM (.addr(pc), .instr(instr));
+    imem #(.MEM_WORDS(IMEM_WORDS), .PROG(PROG)) IMEM (
+        .clk(clk), .addr(pc), .instr(instr),
+        .we(ld_imem_we), .waddr(ld_addr), .wdata(ld_data));
     assign instr_out = instr;
 
     wire [6:0] opcode = instr[6:0];
@@ -102,7 +110,10 @@ module riscv_single #(
     // operation so non-trapping programs see no change in behavior
     wire trap;                       // driven by the CSR file below
     wire commit    = !trap;
-    wire reg_write = reg_write_raw & commit & ~md_stall;
+    // nothing commits while the CPU is held in reset: the instruction at
+    // address 0 is still being decoded, and a program is possibly being
+    // loaded underneath it
+    wire reg_write = reg_write_raw & commit & ~md_stall & ~rst;
 
     regfile RF (
         .clk(clk), .we(reg_write),
@@ -138,12 +149,12 @@ module riscv_single #(
     assign alu_result = md_is_div ? md_result : alu_result_raw;
 
     wire [31:0] mem_rdata;
-    wire        mem_write = mem_write_raw & commit;   // a trap cancels the store
+    wire        mem_write = mem_write_raw & commit & ~rst;   // a trap cancels the store
     dmem #(.MEM_WORDS(DMEM_WORDS), .DATA(DATA)) DMEM (
-        .clk(clk), .rst(rst), .we(mem_write),
-        .funct3(funct3),
-        .addr(alu_result),      // effective address = rs1 + imm
-        .wdata(rs2_data),
+        .clk(clk), .rst(rst), .we(mem_write | ld_dmem_we),
+        .funct3(ld_dmem_we ? 3'b010 : funct3),               // loader writes whole words
+        .addr(ld_dmem_we ? ld_addr : alu_result),            // else rs1 + imm
+        .wdata(ld_dmem_we ? ld_data : rs2_data),
         .rdata(mem_rdata),
         .halted(halted),
         .io_uart_we(io_uart_we), .io_lcd_we(io_lcd_we), .io_wbyte(io_wbyte)

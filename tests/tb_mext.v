@@ -22,7 +22,7 @@ module tb_mext;
     localparam CORE = "pipeline";
 `else
     riscv_single #(.PROG("programs/mext_test.hex"), .SEQ_DIV(`SEQ_DIV_VAL)) dut
-        (.clk(clk), .rst(rst), .pc_out(pc), .instr_out(instr), .halted(halted));
+        (.clk(clk), .rst(rst), .pc_out(pc), .instr_out(instr), .halted(halted), .ld_imem_we(1'b0), .ld_dmem_we(1'b0), .ld_addr(32'd0), .ld_data(32'd0));
     localparam CORE = "single-cycle";
 `endif
 

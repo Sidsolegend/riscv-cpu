@@ -81,6 +81,7 @@ module dmem #(
     end
 
     always @(posedge clk) begin
+        if (rst) halted <= 1'b0;
         if (we) begin
             if (is_io) begin
                 case (io_reg)

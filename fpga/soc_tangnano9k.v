@@ -9,11 +9,16 @@ module soc_tangnano9k #(
     parameter CLK_HZ = 12_600_000,   // CPU/system clock (from the PLL on the board)
     parameter BAUD   = 115200,
     parameter PROG   = "programs/hello.hex",
-    parameter DATA   = "programs/hello.data.hex"
+    parameter DATA   = "programs/hello.data.hex",
+    // the demos need <64 instructions and <64 words of data; programs sent
+    // with tools/load.py must fit in these too
+    parameter IMEM_WORDS = 128,
+    parameter DMEM_WORDS = 64
 )(
     input  wire       clk_in,      // 27 MHz on-board oscillator
     input  wire       btn_rst_n,   // reset button S1 (active low)
     output wire       uart_tx_pin, // -> on-board USB-serial bridge (to your PC)
+    input  wire       uart_rx_pin, // <- the same bridge; carries uart_loader packets
     // HDMI port (DVI signalling), differential pairs
     output wire       tmds_clk_p,
     output wire       tmds_clk_n,
@@ -58,18 +63,36 @@ module soc_tangnano9k #(
     por #(.CYCLES(64)) POR (.clk(clk), .rst(por_rst));
     wire rst = por_rst | ~btn_rst_n | ~pll_lock;
 
+    // Program loading over the UART (tools/load.py). While a packet comes in
+    // the loader holds the CPU -- and the screen, so it starts out clear --
+    // in reset; the UART transmit side stays up so it can reply.
+    wire [7:0]  rx_byte;
+    wire        rx_valid;
+    uart_rx #(.CLK_HZ(CLK_HZ), .BAUD(BAUD)) URX (
+        .clk(clk), .rst(rst), .rx(uart_rx_pin), .data(rx_byte), .valid(rx_valid));
+
+    wire        ld_hold, ld_imem_we, ld_dmem_we, ld_ack_we;
+    wire [31:0] ld_addr, ld_data;
+    wire [7:0]  ld_ack_byte;
+    uart_loader #(.CLK_HZ(CLK_HZ), .IMEM_WORDS(IMEM_WORDS), .DMEM_WORDS(DMEM_WORDS)) LOADER (
+        .clk(clk), .rst(rst), .rx_valid(rx_valid), .rx_data(rx_byte),
+        .hold(ld_hold), .imem_we(ld_imem_we), .dmem_we(ld_dmem_we),
+        .addr(ld_addr), .wdata(ld_data), .ack_we(ld_ack_we), .ack_byte(ld_ack_byte));
+
+    wire cpu_rst = rst | ld_hold;
+
     wire [31:0] pc, instr;
     wire        halted;
     wire        io_uart_we, io_lcd_we;
     wire [7:0]  io_wbyte;
 
-    // sized to fit the chip: the demos need <64 instructions and <64 words of
-    // data, and divides run in the bit-serial unit instead of the ALU
+    // divides run in the bit-serial unit instead of the ALU (see riscv_single)
     riscv_single #(.PROG(PROG), .DATA(DATA),
-                   .IMEM_WORDS(128), .DMEM_WORDS(64), .SEQ_DIV(1)) CPU (
-        .clk(clk), .rst(rst),
+                   .IMEM_WORDS(IMEM_WORDS), .DMEM_WORDS(DMEM_WORDS), .SEQ_DIV(1)) CPU (
+        .clk(clk), .rst(cpu_rst),
         .pc_out(pc), .instr_out(instr), .halted(halted),
-        .io_uart_we(io_uart_we), .io_lcd_we(io_lcd_we), .io_wbyte(io_wbyte)
+        .io_uart_we(io_uart_we), .io_lcd_we(io_lcd_we), .io_wbyte(io_wbyte),
+        .ld_imem_we(ld_imem_we), .ld_dmem_we(ld_dmem_we), .ld_addr(ld_addr), .ld_data(ld_data)
     );
 
     // CPU store -> FIFO -> transmitter
@@ -79,7 +102,7 @@ module soc_tangnano9k #(
 
     fifo #(.WIDTH(8), .DEPTH(512)) UART_FIFO (
         .clk(clk), .rst(rst),
-        .wr(io_uart_we), .din(io_wbyte),
+        .wr(io_uart_we | ld_ack_we), .din(ld_ack_we ? ld_ack_byte : io_wbyte),
         .rd(tx_go), .dout(tx_data), .empty(tx_empty), .full(/*unused*/)
     );
 
@@ -94,14 +117,14 @@ module soc_tangnano9k #(
     wire       lcd_go = ~lcd_busy & ~lcd_empty;
 
     fifo #(.WIDTH(8), .DEPTH(256)) LCD_FIFO (
-        .clk(clk), .rst(rst),
+        .clk(clk), .rst(cpu_rst),
         .wr(io_lcd_we), .din(io_wbyte),
         .rd(lcd_go), .dout(lcd_char), .empty(lcd_empty), .full(/*unused*/)
     );
 
     wire [9:0] sym_r, sym_g, sym_b;
     hdmi_term #(.SCALE(2)) SCREEN (
-        .clk(clk), .rst(rst),
+        .clk(clk), .rst(cpu_rst),
         .wr(lcd_go), .char(lcd_char), .busy(lcd_busy),
         .pclk(pclk), .tmds_r(sym_r), .tmds_g(sym_g), .tmds_b(sym_b)
     );
@@ -143,7 +166,7 @@ module soc_tangnano9k #(
 
     reg seen_we = 0, seen_fifo = 0, seen_tx = 0;
     always @(posedge clk) begin
-        if (rst) begin
+        if (cpu_rst) begin
             seen_we <= 1'b0; seen_fifo <= 1'b0; seen_tx <= 1'b0;
         end else begin
             if (io_uart_we) seen_we   <= 1'b1;
@@ -152,7 +175,7 @@ module soc_tangnano9k #(
         end
     end
 
-    wire [5:0] led = {heartbeat[24], ~rst, seen_tx, seen_fifo, seen_we, halted};
+    wire [5:0] led = {heartbeat[24], ~cpu_rst, seen_tx, seen_fifo, seen_we, halted};
     assign led_n = ~led;
 
 endmodule

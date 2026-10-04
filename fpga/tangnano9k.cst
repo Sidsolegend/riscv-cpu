@@ -14,6 +14,8 @@ IO_PORT "btn_rst_n" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 // ---- UART TX -> on-board USB-serial bridge (appears as a COM port on your PC)
 IO_LOC  "uart_tx_pin" 17;
 IO_PORT "uart_tx_pin" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "uart_rx_pin" 18;
+IO_PORT "uart_rx_pin" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 
 // ---- 6 on-board LEDs (active LOW) ------------------------------------------
 IO_LOC  "led_n[0]" 10;

@@ -35,7 +35,8 @@ module riscv_pipeline #(
     wire [31:0] pc_plus4 = pc + 32'd4;
     wire [31:0] instr_if;
 
-    imem #(.PROG(PROG)) IMEM (.addr(pc), .instr(instr_if));
+    imem #(.PROG(PROG)) IMEM (.clk(clk), .addr(pc), .instr(instr_if),
+                              .we(1'b0), .waddr(32'd0), .wdata(32'd0));
 
     always @(posedge clk) begin
         if (rst)              pc <= 32'd0;

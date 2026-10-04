@@ -54,6 +54,7 @@ nibble order, FIFO wrap), so each is exercised directly:
 |---------------|-------------------------------------------------------------|
 | `make uart`   | TX→RX loopback: every byte survives the 8N1 framing         |
 | `make lcd`    | HD44780 init completes; a char clocks out high-then-low nibble |
+| `make loader` | Program loading on the whole SoC over real UART frames: bad checksum and too-big programs refused with the CPU kept stopped, loads of fib, hello and a no-data program run correctly one after another, mid-packet timeout |
 | `make hdmi`   | TMDS decoded by an independent DVI decoder: 640x480/800x525 geometry, porches, sync widths, vsync-on-hsync edges, DC balance, every pixel of whole frames vs the font after newline/CR/wrap/clear |
 | `make st7789` | ST7789 init bytes, screen clear window, every pixel of a drawn char vs the font, newline/line-wrap/page-wrap |
 | `make fifo`   | full/empty flags and FIFO ordering, incl. overflow guards    |

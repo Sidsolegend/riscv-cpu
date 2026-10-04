@@ -18,7 +18,7 @@ module tb_soc;
         .PROG("programs/hello.hex"), .DATA("programs/hello.data.hex")
     ) DUT (
         .clk_in(clk), .btn_rst_n(btn_rst_n),
-        .uart_tx_pin(uart_line),
+        .uart_tx_pin(uart_line), .uart_rx_pin(1'b1),
         .tmds_clk_p(tmds_clk_p), .tmds_clk_n(tmds_clk_n),
         .tmds_d_p(tmds_d_p), .tmds_d_n(tmds_d_n), .led_n(led_n)
     );

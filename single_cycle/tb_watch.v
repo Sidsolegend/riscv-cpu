@@ -11,7 +11,7 @@ module tb_watch;
     wire [31:0] pc, instr;
 
     riscv_single #(.PROG("programs/sum.hex")) dut (
-        .clk(clk), .rst(rst), .pc_out(pc), .instr_out(instr)
+        .clk(clk), .rst(rst), .pc_out(pc), .instr_out(instr), .ld_imem_we(1'b0), .ld_dmem_we(1'b0), .ld_addr(32'd0), .ld_data(32'd0)
     );
 
     always #5 clk = ~clk;

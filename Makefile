@@ -28,14 +28,14 @@ PIPE_SRC = $(LEAF) pipelined/regfile_pipe.v pipelined/forwarding_unit.v \
 
 .PHONY: all single pipeline hazard watch clean waves-pipeline waves-single \
         asm mext memops hello hello-pipe fib fib-pipe apps traps \
-        muldiv seqdiv bpred rvc diff fpga-tests uart lcd st7789 hdmi fifo soc fpga-lint synth prog blink prog-blink
+        muldiv seqdiv bpred rvc diff fpga-tests uart lcd st7789 hdmi fifo soc loader fpga-lint synth prog flash load blink prog-blink
 
 all: single pipeline hazard mext memops apps traps diff \
      muldiv seqdiv bpred rvc fpga-tests
 
 # Shared new library modules and FPGA peripheral RTL.
 COMMON   = common/muldiv_seq.v common/branch_predictor.v common/rvc_decompress.v
-FPGA_RTL = fpga/uart_tx.v fpga/uart_rx.v fpga/hdmi_term.v fpga/fifo.v fpga/por.v
+FPGA_RTL = fpga/uart_tx.v fpga/uart_rx.v fpga/hdmi_term.v fpga/fifo.v fpga/por.v fpga/uart_loader.v
 
 # ---- Zicsr + machine-mode traps / timer interrupt (single-cycle core) -------
 traps: asm | sim
@@ -79,7 +79,7 @@ rvc: | sim
 	$(VVP) sim/rvc.vvp
 
 # ---- FPGA peripherals + full SoC (all simulated end-to-end) ------------------
-fpga-tests: uart lcd st7789 hdmi fifo soc
+fpga-tests: uart lcd st7789 hdmi fifo soc loader
 
 uart: | sim
 	$(IVERILOG) $(IVFLAGS) -o sim/uart.vvp fpga/uart_tx.v fpga/uart_rx.v tests/tb_uart.v
@@ -100,6 +100,13 @@ st7789: | sim
 fifo: | sim
 	$(IVERILOG) $(IVFLAGS) -o sim/fifo.vvp fpga/fifo.v tests/tb_fifo.v
 	$(VVP) sim/fifo.vvp
+
+# Program loading over the UART, end to end on the SoC (tools/load.py's side
+# is played by a uart_tx in the testbench).
+loader: asm | sim
+	$(IVERILOG) $(IVFLAGS) -o sim/loader.vvp $(FPGA_RTL) \
+	    fpga/soc_tangnano9k.v $(SC_SRC) tests/tb_loader.v
+	$(VVP) sim/loader.vvp
 
 # End-to-end: run hello on the CPU and decode the REAL uart_tx pin.
 # (FPGA_RTL already includes uart_rx, used here as the decoding monitor.)
@@ -135,6 +142,15 @@ synth: asm
 
 prog:
 	openFPGALoader -b tangnano9k sim/soc.fs
+
+# same, but into the board's flash so it's still there after unplugging
+flash:
+	openFPGALoader -b tangnano9k -f sim/soc.fs
+
+# send a program to the running board over USB serial, no rebuild:
+#   make load PROGRAM=fib
+load: asm
+	python3 tools/load.py programs/$(PROGRAM).s
 
 # ---- compile C to the core (needs a riscv32 bare-metal GCC) ------------------
 #  Override the compiler if yours is named differently, e.g.

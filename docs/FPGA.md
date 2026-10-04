@@ -116,7 +116,8 @@ unplug the board, so nothing here is permanent.
    ```bash
    make synth                 # => sim/soc.fs, running programs/hello.s
    make synth PROGRAM=fib     # or any programs/<name>.s
-   make prog
+   make prog                  # into the chip's SRAM (gone when unplugged)
+   make flash                 # or into its flash (boots on every power-up)
    ```
 4. **Watch it run.** For the TV, `make synth PROGRAM=screen` and plug HDMI
    in. **Plug USB in before HDMI, and unplug HDMI before USB.** The TV puts
@@ -132,6 +133,29 @@ unplug the board, so nothing here is permanent.
    ```
    `hello` prints once at power-up, so open the terminal first and then run
    `make prog` (or press S1, the reset button) to see it.
+
+## Running a different program without rebuilding
+
+Every bitstream includes `fpga/uart_loader.v`, so once the board is running
+you can send it any program over the same USB cable in about a second:
+
+```bash
+make load PROGRAM=fib          # or: python3 tools/load.py programs/fib.s
+```
+
+`tools/load.py` assembles the program, sends it, and prints the board's
+reply and then the program's output for a few seconds. The loader holds the
+CPU in reset while it writes the program into instruction and data memory,
+zeroes whatever is left of both, checks a checksum, and then lets the CPU
+run from address 0 (with the HDMI screen cleared). Programs must fit in 128
+instructions and 64 data words. A bad checksum or a sender that stops
+halfway leaves the CPU stopped instead of running half a program; just send
+it again. `make loader` tests all of this on the simulated SoC, including a
+real bug it caught: the loader used to drop a byte when a short program
+made its zero-fill take longer than one byte's arrival time.
+
+Unplugging the board brings back whatever program the bitstream was built
+with.
 
 ## HDMI text terminal
 
