@@ -182,7 +182,7 @@ sieve (`CPU_DIV` sets the CPU clock to 126 MHz / `CPU_DIV`):
 | single-cycle | 12.6 MHz (`CPU_DIV=10`, default) | correct |
 | single-cycle | 27 MHz (crystal) | wrong: a loaded byte came back with one bit flipped |
 | pipeline | 12.6 MHz | correct; `fib` takes 581 cycles vs 459, same as simulation |
-| pipeline | 21 MHz (`CPU_DIV=6`) | correct: 90 s of prime hunting, all 91 readings right |
+| pipeline | 21 MHz (`CPU_DIV=6`) | correct: 90 s of prime hunting, all 91 readings right, clean picture on the TV |
 | pipeline | 31.5 MHz (`CPU_DIV=4`) | wrong: `fib` still passed, but ~9% too many primes counted, and red lines appeared on the TV |
 
 So the pipeline really is faster: 21 MHz against the single-cycle core's
