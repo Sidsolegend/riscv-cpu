@@ -194,8 +194,10 @@ testing: a short program passing says nothing about speed, and only heavy
 sustained computation caught it. nextpnr's own estimate was 42.6 MHz, for
 the same reason as in the single-cycle case (no timing for LUT-RAM reads).
 
-`programs/clock.s` hard-codes 12.6 MHz in `TICKS`; at another clock, change
-it to match or its seconds will be the wrong length.
+Programs that keep time read the CPU clock from the `CLKHZ` device
+(`0x10000010`, the SoC fills in its own frequency), so `programs/clock.s`
+keeps real time on any build; on the board, 22 s of wall time matched 22
+on-screen seconds to 0.06% at 21 MHz.
 
 ## HDMI text terminal
 

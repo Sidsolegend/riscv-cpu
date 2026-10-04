@@ -11,7 +11,8 @@
 
 module dmem #(
     parameter MEM_WORDS = 256,
-    parameter DATA      = ""       // optional .data hex preload
+    parameter DATA      = "",      // optional .data hex preload
+    parameter CLK_HZ    = 0        // reported at MMIO_CLKHZ, so programs can time themselves
 )(
     input  wire        clk,
     input  wire        rst,
@@ -39,7 +40,7 @@ module dmem #(
     end
 
     wire        is_io    = (addr >= `MMIO_BASE);
-    wire [3:0]  io_reg   = addr[3:0];
+    wire [4:0]  io_reg   = addr[4:0];
     wire [31:0] ram_word = mem[addr[31:2] % MEM_WORDS];
 
     assign io_uart_we = we & is_io & (io_reg == `MMIO_UART);
@@ -67,6 +68,7 @@ module dmem #(
         if (is_io) begin
             case (io_reg)
                 `MMIO_CYCLE: rdata = cycles;
+                `MMIO_CLKHZ: rdata = CLK_HZ;
                 default    : rdata = 32'd0;
             endcase
         end else begin

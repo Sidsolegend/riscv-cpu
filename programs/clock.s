@@ -8,18 +8,24 @@
 #     00:01:23   12345    1234567
 #
 # Everything goes to both the UART and the screen (LCD device -> HDMI).
-# TICKS must match the CPU clock: 12.6 MHz on the Tang Nano 9K SoC. The
-# counter is 32 bits and wraps every ~5.7 minutes at that rate, which is
-# fine: elapsed time is (now - last) in unsigned arithmetic.
+# A second is however many cycles the CLKHZ device says the CPU clock is,
+# so this keeps real time on any build (12.6 MHz single-cycle, 21 MHz
+# pipeline, ...); bitstreams from before CLKHZ existed read 0 there, and
+# then it assumes 12.6 MHz. The cycle counter is 32 bits and wraps every
+# few minutes, which is fine: elapsed time is (now - last), unsigned.
 #
 #   make load PROGRAM=clock       (or make synth PROGRAM=clock to build it in)
 
-        .equ    TICKS, 12600000
+        .equ    DEFAULT_HZ, 12600000
 
         .text
 start:
         li      s5, CYCLES
-        li      s6, TICKS
+        li      t0, CLKHZ
+        lw      s6, 0(t0)           # s6 = cycles per second
+        bnez    s6, have_hz
+        li      s6, DEFAULT_HZ
+have_hz:
         lw      s0, 0(s5)           # s0 = cycle count at the last whole second
         li      s1, 0               # seconds since start
         li      s2, 3               # next candidate (odd numbers only)

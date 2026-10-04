@@ -59,10 +59,11 @@
 //  Anything at or above `MMIO_BASE` is a device, not RAM. This is how real
 //  SoCs work: the same lw/sw instructions talk to hardware registers.
 `define MMIO_BASE   32'h1000_0000
-`define MMIO_UART   4'h0   // write: low byte prints to the console / real UART TX
-`define MMIO_CYCLE  4'h4   // read : cycles since reset (a free-running counter)
-`define MMIO_HALT   4'h8   // write: stop the simulation (value = exit code)
-`define MMIO_LCD    4'hC   // write: low byte -> HD44780 character LCD (real HW)
+`define MMIO_UART   5'h00  // write: low byte prints to the console / real UART TX
+`define MMIO_CYCLE  5'h04  // read : cycles since reset (a free-running counter)
+`define MMIO_HALT   5'h08  // write: stop the simulation (value = exit code)
+`define MMIO_LCD    5'h0C  // write: low byte -> the screen (HDMI on the board)
+`define MMIO_CLKHZ  5'h10  // read : CPU clock in Hz (0 if not known, e.g. plain sim)
 
 // ---- Result source select (which value gets written back to the register) --
 `define RES_ALU    2'b00   // ALU output      (arithmetic / logic)

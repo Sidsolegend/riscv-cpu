@@ -94,7 +94,8 @@ module soc_tangnano9k #(
     // divides run in the bit-serial unit instead of the ALU (see riscv_single)
     generate if (PIPELINE) begin : g_core
         riscv_pipeline #(.PROG(PROG), .DATA(DATA),
-                         .IMEM_WORDS(IMEM_WORDS), .DMEM_WORDS(DMEM_WORDS), .SEQ_DIV(1)) CPU (
+                         .IMEM_WORDS(IMEM_WORDS), .DMEM_WORDS(DMEM_WORDS), .SEQ_DIV(1),
+                       .CLK_HZ(CLK_HZ)) CPU (
             .clk(clk), .rst(cpu_rst),
             .pc_out(pc), .instr_out(instr), .halted(halted),
             .io_uart_we(io_uart_we), .io_lcd_we(io_lcd_we), .io_wbyte(io_wbyte),
@@ -102,7 +103,8 @@ module soc_tangnano9k #(
         );
     end else begin : g_core
         riscv_single #(.PROG(PROG), .DATA(DATA),
-                       .IMEM_WORDS(IMEM_WORDS), .DMEM_WORDS(DMEM_WORDS), .SEQ_DIV(1)) CPU (
+                       .IMEM_WORDS(IMEM_WORDS), .DMEM_WORDS(DMEM_WORDS), .SEQ_DIV(1),
+                       .CLK_HZ(CLK_HZ)) CPU (
             .clk(clk), .rst(cpu_rst),
             .pc_out(pc), .instr_out(instr), .halted(halted),
             .io_uart_we(io_uart_we), .io_lcd_we(io_lcd_we), .io_wbyte(io_wbyte),

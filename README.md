@@ -47,6 +47,7 @@ Plus a **memory-mapped I/O bus** (decoded in `dmem.v`, just like a real SoC):
 | `0x10000004` | TIMER  | load → cycles since reset (programs time themselves) |
 | `0x10000008` | HALT   | store → simulation stops (value = exit code)   |
 | `0x1000000C` | LCD    | store a byte → text on a TV over HDMI (on real hardware) |
+| `0x10000010` | CLKHZ  | load → the CPU clock in Hz (so a program can time itself on any build) |
 
 That combination is what turns a datapath demo into an *application target*:
 programs written in assembly print text, convert numbers to decimal with

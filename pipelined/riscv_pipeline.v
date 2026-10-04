@@ -16,7 +16,8 @@ module riscv_pipeline #(
     parameter DATA = "",
     parameter IMEM_WORDS = 256,
     parameter DMEM_WORDS = 256,
-    parameter SEQ_DIV = 0           // same meaning as in riscv_single
+    parameter SEQ_DIV = 0,          // same meaning as in riscv_single
+    parameter CLK_HZ = 0
 )(
     input  wire clk,
     input  wire rst,
@@ -251,7 +252,7 @@ module riscv_pipeline #(
 
     // ---- MEM ----
     wire [31:0] mem_rdata;
-    dmem #(.MEM_WORDS(DMEM_WORDS), .DATA(DATA)) DMEM (
+    dmem #(.MEM_WORDS(DMEM_WORDS), .DATA(DATA), .CLK_HZ(CLK_HZ)) DMEM (
         .clk(clk), .rst(rst), .we(exmem_mem_write | ld_dmem_we),
         .funct3(ld_dmem_we ? 3'b010 : exmem_funct3),
         .addr(ld_dmem_we ? ld_addr : exmem_alu_result),

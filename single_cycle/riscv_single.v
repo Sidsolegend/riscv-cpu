@@ -12,7 +12,8 @@ module riscv_single #(
     // 1 = div/rem run in the bit-serial muldiv_seq unit (PC stalls until it
     // finishes) instead of the ALU's combinational divider, which is far too
     // big for the FPGA. Same results, just takes ~35 cycles per divide.
-    parameter SEQ_DIV = 0
+    parameter SEQ_DIV = 0,
+    parameter CLK_HZ = 0             // what the MMIO_CLKHZ register reports
 )(
     input  wire clk,
     input  wire rst,
@@ -150,7 +151,7 @@ module riscv_single #(
 
     wire [31:0] mem_rdata;
     wire        mem_write = mem_write_raw & commit & ~rst;   // a trap cancels the store
-    dmem #(.MEM_WORDS(DMEM_WORDS), .DATA(DATA)) DMEM (
+    dmem #(.MEM_WORDS(DMEM_WORDS), .DATA(DATA), .CLK_HZ(CLK_HZ)) DMEM (
         .clk(clk), .rst(rst), .we(mem_write | ld_dmem_we),
         .funct3(ld_dmem_we ? 3'b010 : funct3),               // loader writes whole words
         .addr(ld_dmem_we ? ld_addr : alu_result),            // else rs1 + imm
