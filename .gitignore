@@ -15,3 +15,7 @@ sim/*.bin
 
 # macOS folder metadata
 .DS_Store
+
+# personal notes (not part of the project)
+docs/VIVA.md
+media/

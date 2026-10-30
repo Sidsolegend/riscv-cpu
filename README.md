@@ -1,7 +1,9 @@
 # RISC-V CPU — from scratch in Verilog
 
-A working **32-bit RISC-V (RV32IM) processor**, written in Verilog and verified
-in simulation — with memory-mapped I/O, machine-mode traps and interrupts, its
+[![ci](https://github.com/Sidsolegend/riscv-cpu/actions/workflows/ci.yml/badge.svg)](https://github.com/Sidsolegend/riscv-cpu/actions/workflows/ci.yml) [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+A working **32-bit RISC-V (RV32IM) processor**, written in Verilog, verified
+in simulation and running on a real FPGA — with memory-mapped I/O, machine-mode traps and interrupts, its
 own assembler, a C toolchain path, and a synthesizable **FPGA system-on-chip**
 that prints to a real serial terminal and to a TV over HDMI. It comes in two
 flavors, built on the same datapath:
@@ -261,7 +263,9 @@ riscv-cpu/
 │   ├── LEARNING.md            <- guided reading order + a real bug I hit & fixed
 │   ├── VERIFICATION.md        <- how the CPU is tested (differential + randomized)
 │   ├── FPGA.md                <- synthesize & run on a Tang Nano 9K
-│   └── ROADMAP.md             <- what's built + how to integrate the common/ blocks
+│   ├── ROADMAP.md             <- what's built + how to integrate the common/ blocks
+│   └── PROJECT_REPORT.md      <- full write-up (also as RISCV_CPU_Project_Report.pdf)
+├── guidebook/                 <- file-by-file walkthrough of every module, plus debugging stories
 ├── single_cycle/
 │   ├── defines.vh             <- opcodes / ALU codes (read this first)
 │   ├── alu.v                  <- the "calculator"
@@ -323,17 +327,13 @@ the small modules → `single_cycle/riscv_single.v` → then the pipeline.
 
 ---
 
-## Next step (optional): run it on real hardware
+## Running it on real hardware
 
-Everything here is simulation, which is complete and legitimate. If you ever
-want to see it run on a physical chip:
-
-- Write the core onto a cheap FPGA — a **Tang Nano 9K (~$15–20)** is plenty and
-  the open-source toolchain (Yosys + nextpnr / apicula) is free.
-- The Verilog is already synthesizable; you'd add a top-level that maps the PC
-  or a register to on-board LEDs so you can watch a program run.
-
-Not required — the simulated, waveform-verified core stands on its own.
+It runs on a Sipeed Tang Nano 9K (about $15). The single-cycle core runs at
+12.6 MHz and the pipeline at 21 MHz, both correct. Programs print over USB
+serial and onto a TV over HDMI, and `make load PROGRAM=fib` sends a new
+program to the running board with no rebuild. Build steps, measured clock
+limits and the bring-up bugs are in `docs/FPGA.md`.
 
 ---
 
@@ -353,7 +353,7 @@ Not required — the simulated, waveform-verified core stands on its own.
 - [x] **C toolchain path** (`sw/`): compile C with riscv-gcc and run it on the core
 - [x] **Continuous integration**: GitHub Actions runs the whole suite on every push
 - [x] **Verified, ready-to-integrate blocks** (`common/`): sequential mul/div, 2-bit branch predictor, RVC decompressor — each self-checked (`make muldiv bpred rvc`)
-- [ ] (stretch) synthesize onto an FPGA (Tang Nano 9K + open toolchain) — RTL + flow ready, see `docs/FPGA.md`
+- [x] **Runs on a real Tang Nano 9K**: single-cycle at 12.6 MHz, pipeline at 21 MHz, UART + HDMI output, programs loadable over USB (`docs/FPGA.md`)
 - [ ] (stretch) official `riscv-arch-test` compliance + `riscv-formal` — see `docs/VERIFICATION.md`
 
 > A note on the app cycle counts: the pipeline shows *more cycles* than the
@@ -361,4 +361,9 @@ Not required — the simulated, waveform-verified core stands on its own.
 > flushes 2 instructions). That's expected — the pipeline's win is a much
 > faster CLOCK in real hardware (each stage is a short path), not fewer
 > cycles. Seeing that trade-off in your own numbers is the point.
-```
+
+---
+
+## License
+
+MIT. See [LICENSE](LICENSE).
