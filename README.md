@@ -260,7 +260,6 @@ riscv-cpu/
 ├── Makefile                  <- build + run everything
 ├── docs/
 │   ├── ARCHITECTURE.md        <- datapath + pipeline diagrams, how each stage works
-│   ├── LEARNING.md            <- guided reading order + a real bug I hit & fixed
 │   ├── VERIFICATION.md        <- how the CPU is tested (differential + randomized)
 │   ├── FPGA.md                <- synthesize & run on a Tang Nano 9K
 │   └── ROADMAP.md             <- what's built + how to integrate the common/ blocks
@@ -320,7 +319,7 @@ riscv-cpu/
 └── sim/                       <- generated .vvp (compiled) and .vcd (waveform) files
 ```
 
-**Suggested reading order:** `docs/LEARNING.md` → `single_cycle/defines.vh` →
+**Suggested reading order:** `single_cycle/defines.vh` →
 the small modules → `single_cycle/riscv_single.v` → then the pipeline.
 
 ---

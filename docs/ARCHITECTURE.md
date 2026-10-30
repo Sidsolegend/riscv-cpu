@@ -121,8 +121,7 @@ what moves instructions down the line.
 
 ## 3. Why the pipeline register file writes on the *negative* edge
 
-This is subtle and worth understanding (it was a real bug — see
-`LEARNING.md`). When one instruction is in **WB** writing register `xN`, a
+This is subtle and worth understanding (it was a real bug I hit). When one instruction is in **WB** writing register `xN`, a
 younger instruction can be in **ID** reading `xN` *in the same cycle*.
 Forwarding only bypasses into **EX**, not **ID**, so it doesn't help here.
 
