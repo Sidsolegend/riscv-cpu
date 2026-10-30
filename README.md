@@ -263,9 +263,7 @@ riscv-cpu/
 │   ├── LEARNING.md            <- guided reading order + a real bug I hit & fixed
 │   ├── VERIFICATION.md        <- how the CPU is tested (differential + randomized)
 │   ├── FPGA.md                <- synthesize & run on a Tang Nano 9K
-│   ├── ROADMAP.md             <- what's built + how to integrate the common/ blocks
-│   └── PROJECT_REPORT.md      <- full write-up (also as RISCV_CPU_Project_Report.pdf)
-├── guidebook/                 <- file-by-file walkthrough of every module, plus debugging stories
+│   └── ROADMAP.md             <- what's built + how to integrate the common/ blocks
 ├── single_cycle/
 │   ├── defines.vh             <- opcodes / ALU codes (read this first)
 │   ├── alu.v                  <- the "calculator"

@@ -19,3 +19,6 @@ sim/*.bin
 # personal notes (not part of the project)
 docs/VIVA.md
 media/
+guidebook/
+docs/PROJECT_REPORT.md
+docs/RISCV_CPU_Project_Report.pdf
